@@ -32,12 +32,12 @@
   - [x] 4e: Service registration + DI setup (AddApplicationServices)
 
 ## Checkpoint: Foundation
-- [ ] `docker-compose up` brings up API + PostgreSQL
-- [ ] `curl http://localhost:5000/health` returns 200
-- [ ] `curl http://localhost:5000/swagger` lists endpoints
-- [ ] Frontend dev server starts with Tailwind + shadcn button working
-- [ ] All migrations applied, seed data present in DB
-- [ ] `/api/health` reachable via Vite proxy
+- [x] `docker-compose up` brings up API + PostgreSQL
+- [x] `curl http://localhost:5000/health` returns 200
+- [x] `curl http://localhost:5000/swagger` lists endpoints
+- [x] Frontend dev server starts with Tailwind + shadcn button working
+- [x] All migrations applied, seed data present in DB
+- [x] `/api/health` reachable via Vite proxy
 
 ---
 
