@@ -10,11 +10,11 @@
   - [x] 1c: Add Dockerfile + docker-compose for API and PostgreSQL
   - [x] 1d: Configure appsettings + health endpoint + Swagger
 
-- [ ] **Task 2: Initialize Frontend Project**
-  - [ ] 2a: Scaffold React + Vite + TypeScript
-  - [ ] 2b: Install + configure Tailwind CSS + shadcn/ui
-  - [ ] 2c: Install TanStack Query, Zustand, React Router, Axios + Vite proxy
-  - [ ] 2d: Add base layout + route shell (Layout, Navbar, 404)
+- [x] **Task 2: Initialize Frontend Project**
+  - [x] 2a: Scaffold React + Vite + TypeScript
+  - [x] 2b: Install + configure Tailwind CSS + shadcn/ui
+  - [x] 2c: Install TanStack Query, Zustand, React Router, Axios + Vite proxy
+  - [x] 2d: Add base layout + route shell (Layout, Navbar, 404)
 
 - [ ] **Task 3: Database Schema & Migrations**
   - [ ] 3a: Define User (Identity) + Role entities
