@@ -1,0 +1,43 @@
+## .NET / Visual Studio
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+.idea/
+
+## Node / Frontend (planned)
+node_modules/
+dist/
+.npm
+.pnpm-store/
+
+## Build / test artifacts
+TestResults/
+coverage/
+*.trx
+*.coverage
+*.coveragexml
+*.dll
+*.pdb
+*.exe
+*.cache
+*.log
+
+## OS / tooling
+.DS_Store
+Thumbs.db
+nul
+
+## WSL / Windows metadata
+*:Zone.Identifier
+*:"Zone.Identifier"
+
+## Local env / secrets (do not commit)
+*.env
+.env
+appsettings.*.local.json
+secrets.json
