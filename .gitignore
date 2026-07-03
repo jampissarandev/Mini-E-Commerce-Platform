@@ -35,6 +35,7 @@ nul
 ## WSL / Windows metadata
 *:Zone.Identifier
 *:"Zone.Identifier"
+*Zone.Identifier
 
 ## Local env / secrets (do not commit)
 *.env

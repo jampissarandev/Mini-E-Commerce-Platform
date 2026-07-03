@@ -16,13 +16,13 @@
   - [x] 2c: Install TanStack Query, Zustand, React Router, Axios + Vite proxy
   - [x] 2d: Add base layout + route shell (Layout, Navbar, 404)
 
-- [ ] **Task 3: Database Schema & Migrations**
-  - [ ] 3a: Define User (Identity) + Role entities
-  - [ ] 3b: Define Category + Product + ProductImage entities
-  - [ ] 3c: Define Cart + CartItem entities
-  - [ ] 3d: Define Order + OrderItem entities
-  - [ ] 3e: Apply migrations + verify schema
-  - [ ] 3f: Add seed data (admin user, categories, products)
+- [x] **Task 3: Database Schema & Migrations**
+  - [x] 3a: Define User (Identity) + Role entities
+  - [x] 3b: Define Category + Product + ProductImage entities
+  - [x] 3c: Define Cart + CartItem entities
+  - [x] 3d: Define Order + OrderItem entities
+  - [x] 3e: Apply migrations + verify schema
+  - [x] 3f: Add seed data (admin user, categories, products)
 
 - [ ] **Task 4: Base Architecture & Utilities**
   - [ ] 4a: Generic repository pattern (IRepository<T>, Repository<T>)
