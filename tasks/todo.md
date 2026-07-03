@@ -24,12 +24,12 @@
   - [x] 3e: Apply migrations + verify schema
   - [x] 3f: Add seed data (admin user, categories, products)
 
-- [ ] **Task 4: Base Architecture & Utilities**
-  - [ ] 4a: Generic repository pattern (IRepository<T>, Repository<T>)
-  - [ ] 4b: API response wrapper + exception middleware
-  - [ ] 4c: IImageStorage interface + LocalImageStorage
-  - [ ] 4d: IPaymentService interface + MockPaymentService
-  - [ ] 4e: Service registration + DI setup (AddApplicationServices)
+- [x] **Task 4: Base Architecture & Utilities**
+  - [x] 4a: Generic repository pattern (IRepository<T>, Repository<T>)
+  - [x] 4b: API response wrapper + exception middleware
+  - [x] 4c: IImageStorage interface + LocalImageStorage
+  - [x] 4d: IPaymentService interface + MockPaymentService
+  - [x] 4e: Service registration + DI setup (AddApplicationServices)
 
 ## Checkpoint: Foundation
 - [ ] `docker-compose up` brings up API + PostgreSQL

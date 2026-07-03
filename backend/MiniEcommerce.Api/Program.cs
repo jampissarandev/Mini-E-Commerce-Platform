@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using MiniEcommerce.Api.Data;
+using MiniEcommerce.Api.Extensions;
+using MiniEcommerce.Api.Middleware;
 using MiniEcommerce.Api.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,6 +25,9 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
+
+// Application services (repositories, image storage, payments)
+builder.Services.AddApplicationServices();
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -80,6 +85,9 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 var app = builder.Build();
+
+// Global exception handling
+app.UseMiddleware<ExceptionMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
