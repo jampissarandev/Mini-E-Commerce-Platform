@@ -57,12 +57,12 @@
   - [x] 6e: Navbar with auth state
 
 ## Checkpoint: Auth
-- [ ] User can register and login via UI
-- [ ] Backend issues JWT with role claim
-- [ ] Customer cannot access `/admin` (403)
-- [ ] Admin can access `/admin` (200)
-- [ ] Token persists across reload
-- [ ] 401 from API triggers logout + redirect
+- [x] User can register and login via UI
+- [x] Backend issues JWT with role claim
+- [x] Customer cannot access `/admin` (403)
+- [x] Admin can access `/admin` (200)
+- [x] Token persists across reload
+- [x] 401 from API triggers logout + redirect
 
 ---
 
