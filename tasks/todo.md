@@ -113,11 +113,11 @@
   - [x] 12c: Order history page
 
 ## Checkpoint: Cart & Checkout
-- [ ] Customer can add items to cart from list and detail pages
-- [ ] Cart sheet shows live updates
-- [ ] Checkout creates an order, decrements stock, clears cart
-- [ ] Order confirmation + history pages work
-- [ ] Payment failure (mock) handled gracefully
+- [x] Customer can add items to cart from list and detail pages
+- [x] Cart sheet shows live updates
+- [x] Checkout creates an order, decrements stock, clears cart
+- [x] Order confirmation + history pages work
+- [x] Payment failure (mock) handled gracefully
 
 ---
 
