@@ -211,7 +211,12 @@ namespace MiniEcommerce.Api.Migrations
                     Subtotal = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
                     ShippingFee = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
                     Total = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
-                    ShippingAddress = table.Column<string>(type: "text", nullable: false),
+                    ShippingFullName = table.Column<string>(type: "text", nullable: false),
+                    ShippingStreet = table.Column<string>(type: "text", nullable: false),
+                    ShippingCity = table.Column<string>(type: "text", nullable: false),
+                    ShippingPostalCode = table.Column<string>(type: "text", nullable: false),
+                    ShippingCountry = table.Column<string>(type: "text", nullable: false),
+                    ShippingPhone = table.Column<string>(type: "text", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UserId = table.Column<string>(type: "text", nullable: false)
                 },

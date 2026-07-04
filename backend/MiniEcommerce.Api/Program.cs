@@ -37,6 +37,12 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.Password.RequireLowercase = true;
     options.User.RequireUniqueEmail = true;
     options.SignIn.RequireConfirmedEmail = true;
+
+    // Tell Identity to use the short "sub" claim as the user-id claim so
+    // UserManager.GetUserId(principal) works when the inbound claim map is
+    // disabled (MapInboundClaims = false below). Without this, the default
+    // ClaimTypes.NameIdentifier lookup returns null and /auth/me 401s.
+    options.ClaimsIdentity.UserIdClaimType = "sub";
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
@@ -49,6 +55,13 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
+    // Prevent the inbound claim mapper from rewriting short claim names
+    // (e.g. "role", "sub") into the long ClaimTypes.* URIs. Without this,
+    // tokens issued with new Claim("role", "Admin") end up with the long
+    // role URI on the principal, so [Authorize(Roles="Admin")] never
+    // matches because RoleClaimType is set to "role".
+    options.MapInboundClaims = false;
+
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -99,7 +112,7 @@ builder.Services.AddAuthentication(options =>
 });
 
 // Application services (repositories, image storage, payments)
-builder.Services.AddApplicationServices();
+builder.Services.AddApplicationServices(builder.Configuration);
 
 // Add services to the container.
 builder.Services.AddControllers();

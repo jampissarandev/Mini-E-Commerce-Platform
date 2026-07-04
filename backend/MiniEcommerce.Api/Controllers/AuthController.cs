@@ -96,6 +96,25 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Admin-only smoke endpoint used to verify role-gated authorization.
+    /// Returns 200 for Admin tokens, 403 for Customer tokens (via the
+    /// JwtBearer OnForbidden event in Program.cs).
+    /// </summary>
+    [Authorize(Roles = "Admin")]
+    [HttpGet("admin/ping")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public IActionResult AdminPing()
+    {
+        return Ok(ApiResponse<object>.Ok(new
+        {
+            message = "pong",
+            role = "Admin"
+        }));
+    }
+
+    /// <summary>
     /// Get the currently authenticated user's profile.
     /// </summary>
     [Authorize]

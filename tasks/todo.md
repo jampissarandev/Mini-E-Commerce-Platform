@@ -73,60 +73,60 @@
   - [ ] 7b: GET /products/:id
   - [ ] 7c: GET /categories
 
-- [ ] **Task 8: Product Catalog UI**
-  - [ ] 8a: Product card component + grid
-  - [ ] 8b: Category filter + search bar (URL-driven)
-  - [ ] 8c: Pagination component
-  - [ ] 8d: Product list page
-  - [ ] 8e: Product detail page
-  - [ ] 8f: TanStack Query hooks for products
+- [x] **Task 8: Product Catalog UI**
+  - [x] 8a: Product card component + grid
+  - [x] 8b: Category filter + search bar (URL-driven)
+  - [x] 8c: Pagination component
+  - [x] 8d: Product list page
+  - [x] 8e: Product detail page
+  - [x] 8f: TanStack Query hooks for products
 
 ## Checkpoint: Catalog
-- [ ] `/products` shows all seeded products with images
-- [ ] Search and category filter work
-- [ ] Pagination updates URL and fetches correctly
-- [ ] `/products/:slug` shows product detail
-- [ ] Skeleton loaders and empty states render
+- [x] `/products` shows all seeded products with images
+- [x] Search and category filter work
+- [x] Pagination updates URL and fetches correctly
+- [x] `/products/:id` shows product detail
+- [x] Skeleton loaders and empty states render
 
 ---
 
 ## Phase 4: Cart & Checkout
 
-- [ ] **Task 9: Cart API Endpoints**
-  - [ ] 9a: GET /cart
-  - [ ] 9b: POST /cart/items + PUT /cart/items/:id + DELETE /cart/items/:id
-  - [ ] 9c: DELETE /cart (clear)
+- [x] **Task 9: Cart API Endpoints**
+  - [x] 9a: GET /cart
+  - [x] 9b: POST /cart/items + PUT /cart/items/:id + DELETE /cart/items/:id
+  - [x] 9c: DELETE /cart (clear)
 
-- [ ] **Task 10: Cart UI**
-  - [ ] 10a: Cart store (TanStack Query) + hook
-  - [ ] 10b: Cart icon with item count badge
-  - [ ] 10c: Cart sheet (shadcn Sheet)
-  - [ ] 10d: Add-to-cart from product pages
+- [x] **Task 10: Cart UI**
+  - [x] 10a: Cart store (TanStack Query) + hook
+  - [x] 10b: Cart icon with item count badge
+  - [x] 10c: Cart sheet (shadcn Sheet)
+  - [x] 10d: Add-to-cart from product pages
 
-- [ ] **Task 11: Checkout API**
-  - [ ] 11a: POST /orders (with stock re-validation, payment, stock deduction)
-  - [ ] 11b: GET /orders + GET /orders/:id
+- [x] **Task 11: Checkout API**
+  - [x] 11a: POST /orders (with stock re-validation, payment, stock deduction)
+  - [x] 11b: GET /orders + GET /orders/:id
 
-- [ ] **Task 12: Checkout UI**
-  - [ ] 12a: Checkout form (shipping)
-  - [ ] 12b: Order confirmation page
-  - [ ] 12c: Order history page
+- [x] **Task 12: Checkout UI**
+  - [x] 12a: Checkout form (shipping)
+  - [x] 12b: Order confirmation page
+  - [x] 12c: Order history page
 
 ## Checkpoint: Cart & Checkout
-- [ ] Customer can add items to cart from list and detail pages
-- [ ] Cart sheet shows live updates
-- [ ] Checkout creates an order, decrements stock, clears cart
-- [ ] Order confirmation + history pages work
-- [ ] Payment failure (mock) handled gracefully
+- [x] Customer can add items to cart from list and detail pages
+- [x] Cart sheet shows live updates
+- [x] Checkout creates an order, decrements stock, clears cart
+- [x] Order confirmation + history pages work
+- [x] Payment failure (mock) handled gracefully
 
 ---
 
 ## Phase 5: Admin Panel
 
-- [ ] **Task 13: Admin — Product Management API**
-  - [ ] 13a: GET /admin/products + POST /admin/products
-  - [ ] 13b: PUT /admin/products/:id + DELETE /admin/products/:id
-  - [ ] 13c: POST /admin/products/:id/images + DELETE /admin/products/:id/images/:imageId
+- [x] **Task 13: Admin — Product Management API**
+  - [x] 13a: GET /admin/products + POST /admin/products
+  - [x] 13b: PUT /admin/products/:id + DELETE /admin/products/:id
+  - [x] 13c: POST /admin/products/:id/images + DELETE /admin/products/:id/images/:imageId
 
 - [ ] **Task 14: Admin — Product Management UI**
   - [ ] 14a: Product data table

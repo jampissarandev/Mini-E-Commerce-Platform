@@ -322,13 +322,33 @@ namespace MiniEcommerce.Api.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("ShippingAddress")
+                    b.Property<string>("ShippingCity")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ShippingCountry")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<decimal>("ShippingFee")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ShippingFullName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ShippingPhone")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ShippingPostalCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ShippingStreet")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
