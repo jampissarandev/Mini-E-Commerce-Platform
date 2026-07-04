@@ -13,7 +13,16 @@ public static class Seed
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-        await context.Database.MigrateAsync();
+        // Migrations are relational-only. For the in-memory provider used in tests,
+        // EnsureCreated creates the schema from the model instead.
+        if (context.Database.IsRelational())
+        {
+            await context.Database.MigrateAsync();
+        }
+        else
+        {
+            await context.Database.EnsureCreatedAsync();
+        }
 
         await SeedRolesAsync(roleManager);
         await SeedUsersAsync(userManager);

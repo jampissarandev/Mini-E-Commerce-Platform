@@ -43,11 +43,11 @@
 
 ## Phase 2: Authentication & Identity
 
-- [ ] **Task 5: Identity & Auth Backend**
-  - [ ] 5a: Configure Identity + JWT in Program.cs
-  - [ ] 5b: Implement /auth/register endpoint
-  - [ ] 5c: Implement /auth/login endpoint
-  - [ ] 5d: Add /auth/me endpoint + role attributes
+- [x] **Task 5: Identity & Auth Backend**
+  - [x] 5a: Configure Identity + JWT in Program.cs
+  - [x] 5b: Implement /auth/register endpoint
+  - [x] 5c: Implement /auth/login endpoint
+  - [x] 5d: Add /auth/me endpoint + role attributes
 
 - [ ] **Task 6: Auth Frontend**
   - [ ] 6a: Zustand auth store (with persist)
@@ -158,24 +158,40 @@
 
 ## Phase 6: Testing & Polish
 
-- [ ] **Task 18: Backend Testing**
-  - [ ] 18a: Test infrastructure (xUnit + Testcontainers + WebApplicationFactory)
-  - [ ] 18b: Unit tests for services
-  - [ ] 18c: Integration tests for controllers
+- [ ] **Task 18: Backend Testing (TDD foundation)**
+  - [x] 18a: Write `tasks/test-spec.md` (test strategy, conventions, DB choice)
+  - [ ] 18b: Scaffold `MiniEcommerce.Api.Tests` xUnit project + wire `dotnet test` (21a)
+  - [ ] 18c: `WebApplicationFactory<Program>` test host with EF Core InMemory (21b)
+  - [ ] 18d: TDD `Repository<T>` tests against InMemory DB (21c)
+  - [ ] 18e: TDD `ExceptionMiddleware` tests for all exception→status mappings (21d)
+  - [ ] 18f: TDD `AuthController` integration tests (register, login, /me, role gating) (21e)
 
-- [ ] **Task 19: Documentation**
-  - [ ] 19a: README + setup instructions
-  - [ ] 19b: Swagger annotations
-  - [ ] 19c: VPS deployment guide
+- [ ] **Task 19: Frontend Testing (TDD foundation)**
+  - [ ] 19a: Install Vitest + RTL + jsdom + MSW; add `test` / `coverage` scripts (21f)
+  - [ ] 19b: `setup.ts` + MSW server + default handlers (21g)
+  - [ ] 19c: TDD `utils.test.ts` for the `cn()` helper (21h)
+  - [ ] 19d: Smoke `App.test.tsx` with MSW-stubbed `/api/health` (21i)
 
-- [ ] **Task 20: Docker Production Build**
-  - [ ] 20a: Multi-stage Dockerfile for API
-  - [ ] 20b: Multi-stage Dockerfile for frontend (Nginx)
-  - [ ] 20c: Production docker-compose + env config
+- [ ] **Task 20: Testing documentation & CI**
+  - [ ] 20a: Write `docs/testing.md` and update `README.md` (21j)
+  - [ ] 20b: Add `.github/workflows/ci.yml` running `dotnet test` + `npm test` (21k)
+  - [ ] 20c: Run full suite, confirm both pass (21l)
+
+- [ ] **Task 21: Documentation**
+  - [ ] 21a: README + setup instructions
+  - [ ] 21b: Swagger annotations
+  - [ ] 21c: VPS deployment guide
+
+- [ ] **Task 22: Docker Production Build**
+  - [ ] 22a: Multi-stage Dockerfile for API
+  - [ ] 22b: Multi-stage Dockerfile for frontend (Nginx)
+  - [ ] 22c: Production docker-compose + env config
 
 ## Checkpoint: Complete
 - [ ] `dotnet test` returns 0
+- [ ] `npm test` returns 0
 - [ ] `npm run build` returns 0
 - [ ] `docker compose -f docker-compose.prod.yml up` brings up the full stack
 - [ ] Customer and admin flows tested end-to-end
 - [ ] README + Swagger cover the full surface
+- [ ] Every future behavior change has a test written first (TDD)

@@ -207,3 +207,8 @@ app.MapHealthChecks("/health");
 await Seed.InitializeAsync(app.Services);
 
 app.Run();
+
+// Expose the implicit Program class so WebApplicationFactory<Program> can use it
+// in tests. This is a no-op at runtime; see
+// https://learn.microsoft.com/aspnet/core/test/integration-tests
+public partial class Program;
