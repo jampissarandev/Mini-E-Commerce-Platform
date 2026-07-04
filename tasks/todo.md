@@ -68,10 +68,10 @@
 
 ## Phase 3: Product Catalog (Customer)
 
-- [ ] **Task 7: Product API Endpoints**
-  - [ ] 7a: GET /products (pagination, filtering, sorting)
-  - [ ] 7b: GET /products/:id
-  - [ ] 7c: GET /categories
+- [x] **Task 7: Product API Endpoints**
+  - [x] 7a: GET /products (pagination, filtering, sorting)
+  - [x] 7b: GET /products/:id
+  - [x] 7c: GET /categories
 
 - [ ] **Task 8: Product Catalog UI**
   - [ ] 8a: Product card component + grid
