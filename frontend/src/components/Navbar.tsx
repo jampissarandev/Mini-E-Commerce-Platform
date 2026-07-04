@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { ShoppingCart } from 'lucide-react'
+import { CartBadge } from '@/components/CartBadge'
 import { useAuthStore } from '@/lib/auth-store'
 
 export function Navbar() {
@@ -29,9 +29,7 @@ export function Navbar() {
           )}
         </nav>
         <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="icon">
-            <ShoppingCart className="h-5 w-5" />
-          </Button>
+          <CartBadge />
           {isAuthenticated() ? (
             <>
               <span className="text-sm text-muted-foreground hidden sm:inline">

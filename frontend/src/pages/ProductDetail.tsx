@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useProduct } from '@/lib/useProducts'
+import { useAddToCart } from '@/lib/useCart'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, Plus, Minus, Check } from 'lucide-react'
 
 function formatPrice(price: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -13,9 +15,12 @@ function formatPrice(price: number): string {
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>()
   const productId = Number(id)
+  const [quantity, setQuantity] = useState(1)
+  const [justAdded, setJustAdded] = useState(false)
 
   const { data, isLoading, isError } = useProduct(productId)
   const product = data?.data
+  const addToCart = useAddToCart()
 
   if (isLoading) {
     return (
@@ -95,6 +100,64 @@ export function ProductDetail() {
               Stock: <span className="font-medium text-foreground">{product.stock} in stock</span>
             </p>
           </div>
+
+          {/* Add to Cart */}
+          {product.stock > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium">Quantity:</span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon-xs"
+                    aria-label="Decrease quantity"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    disabled={quantity <= 1}
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <span className="w-10 text-center text-sm font-medium">{quantity}</span>
+                  <Button
+                    variant="outline"
+                    size="icon-xs"
+                    aria-label="Increase quantity"
+                    onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))}
+                    disabled={quantity >= product.stock}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+              <Button
+                size="lg"
+                className="w-full"
+                onClick={() => {
+                  addToCart.mutate(
+                    { productId: product.id, quantity },
+                    {
+                      onSuccess: () => {
+                        setJustAdded(true)
+                        setTimeout(() => setJustAdded(false), 2000)
+                      },
+                    },
+                  )
+                }}
+                disabled={addToCart.isPending}
+              >
+                {justAdded ? (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Added to Cart!
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart className="mr-2 h-4 w-4" />
+                    {addToCart.isPending ? 'Adding...' : 'Add to Cart'}
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

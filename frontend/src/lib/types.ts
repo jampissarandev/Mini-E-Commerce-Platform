@@ -59,3 +59,32 @@ export interface CategoryDto {
   slug: string
   productCount: number
 }
+
+// Cart types — mirrors backend CartDto / CartItemDto.
+export interface CartItemDto {
+  id: number
+  productId: number
+  productName: string
+  productSlug: string
+  imageUrl: string
+  unitPrice: number
+  quantity: number
+  subtotal: number
+}
+
+export interface CartDto {
+  id: number
+  createdAt: string
+  updatedAt: string
+  items: CartItemDto[]
+  total: number
+}
+
+export interface AddCartItemRequest {
+  productId: number
+  quantity: number
+}
+
+export interface UpdateCartItemRequest {
+  quantity: number
+}

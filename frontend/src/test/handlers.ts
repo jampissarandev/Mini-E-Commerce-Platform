@@ -31,4 +31,19 @@ export const handlers = [
       data: [],
     }),
   ),
+
+  // Cart endpoint — default empty cart so components that render CartBadge
+  // (like Navbar) don't need per-test overrides.
+  http.get(/\/api\/cart$/, () =>
+    HttpResponse.json({
+      success: true,
+      data: {
+        id: 1,
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+        items: [],
+        total: 0,
+      },
+    }),
+  ),
 ]

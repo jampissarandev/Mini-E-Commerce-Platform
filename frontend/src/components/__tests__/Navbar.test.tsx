@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, beforeEach } from 'vitest'
 import { Navbar } from '@/components/Navbar'
 import { useAuthStore } from '@/lib/auth-store'
+import { server } from '@/test/server'
 
 function renderNavbar() {
   const queryClient = new QueryClient({
@@ -19,6 +20,10 @@ function renderNavbar() {
     </QueryClientProvider>,
   )
 }
+
+beforeEach(() => {
+  server.resetHandlers()
+})
 
 beforeEach(() => {
   localStorage.clear()

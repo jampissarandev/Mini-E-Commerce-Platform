@@ -97,11 +97,11 @@
   - [x] 9b: POST /cart/items + PUT /cart/items/:id + DELETE /cart/items/:id
   - [x] 9c: DELETE /cart (clear)
 
-- [ ] **Task 10: Cart UI**
-  - [ ] 10a: Cart store (TanStack Query) + hook
-  - [ ] 10b: Cart icon with item count badge
-  - [ ] 10c: Cart sheet (shadcn Sheet)
-  - [ ] 10d: Add-to-cart from product pages
+- [x] **Task 10: Cart UI**
+  - [x] 10a: Cart store (TanStack Query) + hook
+  - [x] 10b: Cart icon with item count badge
+  - [x] 10c: Cart sheet (shadcn Sheet)
+  - [x] 10d: Add-to-cart from product pages
 
 - [ ] **Task 11: Checkout API**
   - [ ] 11a: POST /orders (with stock re-validation, payment, stock deduction)
