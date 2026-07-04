@@ -128,10 +128,10 @@
   - [x] 13b: PUT /admin/products/:id + DELETE /admin/products/:id
   - [x] 13c: POST /admin/products/:id/images + DELETE /admin/products/:id/images/:imageId
 
-- [ ] **Task 14: Admin — Product Management UI**
-  - [ ] 14a: Product data table
-  - [ ] 14b: Add/Edit product form with image upload
-  - [ ] 14c: Delete confirmation dialog
+- [x] **Task 14: Admin — Product Management UI**
+  - [x] 14a: Product data table
+  - [x] 14b: Add/Edit product form with image upload
+  - [x] 14c: Delete confirmation dialog
 
 - [ ] **Task 15: Admin — Order Management API**
   - [ ] 15a: GET /admin/orders (with filters)

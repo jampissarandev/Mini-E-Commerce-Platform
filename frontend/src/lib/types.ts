@@ -97,6 +97,44 @@ export interface UpdateCartItemRequest {
   quantity: number
 }
 
+// Admin product types — mirrors backend AdminProductListItem / AdminProductDetailDto.
+export interface AdminProductListItem {
+  id: number
+  name: string
+  slug: string
+  price: number
+  stock: number
+  isActive: boolean
+  categoryName: string
+  imageUrl: string
+  createdAt: string
+}
+
+export interface AdminProductDetailDto {
+  id: number
+  name: string
+  slug: string
+  description: string
+  price: number
+  stock: number
+  isActive: boolean
+  createdAt: string
+  category: ProductCategoryDto
+  images: ProductImageDto[]
+}
+
+export interface CreateProductRequest {
+  name: string
+  slug?: string
+  description: string
+  price: number
+  stock: number
+  categoryId: number
+  isActive: boolean
+}
+
+export type UpdateProductRequest = CreateProductRequest
+
 // Order types — mirrors backend OrderDto / OrderItemDto / CheckoutRequest.
 export interface CheckoutRequest {
   fullName: string
