@@ -194,7 +194,7 @@
   - [x] 23c: Vite 6→8 + @vitejs/plugin-react 4→6 (commit `eacb41c`; no config changes required; 55/55 frontend tests pass, production build clean)
   - [x] 23d: ESLint 9→10 (commit `d80e31e`; flat config forward-compatible; lint clean)
   - [x] 23e: @types/node 22→26 (commit `6765bdf`; type-only upgrade; `tsc -b` clean)
-  - [ ] 23f: Run `npm audit` and `dotnet list package --vulnerable`; record any findings
+  - [x] 23f: Security audit (2026-07-04) — `npm audit`: **0 vulnerabilities**; `dotnet list package --vulnerable --include-transitive` on `MiniEcommerce.Api` and `MiniEcommerce.Api.Tests`: **0 vulnerable packages**. Branch `chore/deps-2026-07-04` ready to merge.
 
 ## Checkpoint: Complete
 - [ ] `dotnet test` returns 0
