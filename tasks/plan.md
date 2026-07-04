@@ -1627,3 +1627,51 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 - [x] Email -> Out of scope, architecture allows later addition ✅
 - [ ] Token refresh strategy: silent refresh vs re-login? (defer; current scope is login-only)
 - [ ] Image CDN signing for production? (defer; out of scope)
+
+---
+
+## Dependency Upgrade Strategy
+
+A periodic pass to bring runtime and dev dependencies to current versions without breaking the working build. The driving principle: **upgrades are isolated, tested, and reversible** — never mixed with feature work, never rolled into a "while I'm in here" commit.
+
+### Policy
+
+1. **No upgrades during feature work.** Open a dedicated branch (`chore/deps-<date>` or `chore/deps-<package>-<from>-<to>`) per upgrade. Do not combine an upgrade with a feature or bugfix in the same commit.
+2. **One major per PR.** ImageSharp 3.1→4.0 in one PR. Vite 6→8 in another. Never bundle `npm update` across majors into a single "dependency upgrade" PR — the blast radius of a single regression is impossible to bisect otherwise.
+3. **Tests gate every upgrade.** Before opening the PR: `npm test -- --run` and `dotnet test` must pass. After upgrade: they must pass again. If they fail, the upgrade PR is the only thing that changes and is easy to revert.
+4. **Read the upstream migration guide first** for any major bump. For ImageSharp 4.x: `SixLabors.ImageSharp` namespace, `Metadata.DecodedImageFormat`, and `IImageFormat.FileExtensions` are all impacted. For Vite 8: `defineConfig` signature and `vite-plugin-react` 6 are coupled.
+5. **Security vulnerabilities bypass the policy.** A `dotnet list package --vulnerable` or `npm audit` finding gets a hot-fix PR regardless of the freeze; do not wait for the next scheduled pass.
+6. **Lock the floor, not the ceiling.** Use caret ranges (`^x.y.z`) for runtime deps; let `npm update` and `dotnet outdated` surface drift. Pin only when an upstream API is unstable (e.g., `SixLabors.ImageSharp` stayed on `3.1.*` because v4 was a major rewrite at the time of Task 1b).
+7. **Verify, don't assume.** Every upgrade is followed by a full test pass + a manual smoke of the affected feature (e.g., ImageSharp upgrade → upload an image via the admin endpoint; Vite upgrade → `npm run build` + dev server hot-reload).
+
+### Known Upgrades Tracked (snapshot 2026-07-04)
+
+| Package | Current | Latest | Type | Risk | Action |
+|---|---|---|---|---|---|
+| `SixLabors.ImageSharp` | 3.1.12 | 4.0.x | Runtime / Major | **High** — API rename, license change, requires `LocalImageStorage.cs` rewrite | Task 23a |
+| `Swashbuckle.AspNetCore` | 6.9.0 | 10.2.x | Runtime / Major | Medium — config layer rewritten, may need `Program.cs` swagger setup update | Task 23b |
+| `vite` | 6.4.3 | 8.1.x | Dev / Major | Medium — `defineConfig`/plugin contract changes; `vite-plugin-react` must move to 6 in lockstep | Task 23c |
+| `eslint` | 9.39.4 | 10.6.x | Dev / Major | Low — flat config mostly stable, may need `eslint-plugin-react-hooks` bump | Task 23d |
+| `@types/node` | 22.20.0 | 26.x | Dev / Major | Low — type-only, build-time only | Task 23e |
+| `@vitejs/plugin-react` | 4.7.0 | 6.0.x | Dev / Major | Must move with Vite 8 (23c) | 23c |
+
+### Upgrade Order (recommended)
+
+1. **Dev-only first** (23c→23d→23e) — lowest blast radius, validates the upgrade procedure itself.
+2. **Swashbuckle** (23b) — isolated to `Program.cs` swagger setup; easy to revert.
+3. **ImageSharp** (23a) last — the only upgrade that touches product logic. Save for a session with a fresh context and full local image-upload testing.
+
+### Acceptance Criteria for the Strategy Itself
+
+- [ ] No upgrade PR includes feature code changes
+- [ ] Every upgrade PR has a test run before and after in the PR description
+- [ ] Upstream migration guide is linked in the PR body
+- [ ] If the upgrade is **major**: at minimum one manual smoke of the affected feature is performed and noted in the PR
+- [ ] If the upgrade **fails tests**: the upgrade is reverted, not worked around
+- [ ] Lockfile (`package-lock.json` / `packages.lock.json`) is committed with the upgrade
+
+### Cadence
+
+- **Monthly** (or before each release): run `npm outdated` and `dotnet list package --outdated` + `--vulnerable`. File one issue per major version bump discovered.
+- **Immediately** (out of band): any `npm audit` / `--vulnerable` finding.
+- **Never** during the last 48 hours before a release freeze.

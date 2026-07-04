@@ -49,12 +49,12 @@
   - [x] 5c: Implement /auth/login endpoint
   - [x] 5d: Add /auth/me endpoint + role attributes
 
-- [ ] **Task 6: Auth Frontend**
-  - [ ] 6a: Zustand auth store (with persist)
-  - [ ] 6b: Axios instance with auth interceptor
-  - [ ] 6c: Login + Register pages with shadcn forms
-  - [ ] 6d: Protected + role-based route guards
-  - [ ] 6e: Navbar with auth state
+- [x] **Task 6: Auth Frontend**
+  - [x] 6a: Zustand auth store (with persist)
+  - [x] 6b: Axios instance with auth interceptor
+  - [x] 6c: Login + Register pages with shadcn forms
+  - [x] 6d: Protected + role-based route guards
+  - [x] 6e: Navbar with auth state
 
 ## Checkpoint: Auth
 - [ ] User can register and login via UI
@@ -186,6 +186,15 @@
   - [ ] 22a: Multi-stage Dockerfile for API
   - [ ] 22b: Multi-stage Dockerfile for frontend (Nginx)
   - [ ] 22c: Production docker-compose + env config
+
+- [ ] **Task 23: Dependency Upgrades (latest)**
+  > Snapshot 2026-07-04. Strategy: see [plan.md "Dependency Upgrade Strategy"](plan.md#dependency-upgrade-strategy). One major per PR. Tests gate every upgrade.
+  - [ ] 23a: ImageSharp 3.1→4.0 (read upstream migration guide; rewrite `LocalImageStorage.cs`; smoke image upload)
+  - [ ] 23b: Swashbuckle.AspNetCore 6.9→10.2 (update `Program.cs` swagger config; verify `/swagger` UI)
+  - [ ] 23c: Vite 6→8 + @vitejs/plugin-react 4→6 (in lockstep; verify dev server + production build)
+  - [ ] 23d: ESLint 9→10 (update flat config; re-run `npm run lint`)
+  - [ ] 23e: @types/node 22→26 (type-only; verify `tsc -b` clean)
+  - [ ] 23f: Run `npm audit` and `dotnet list package --vulnerable`; record any findings
 
 ## Checkpoint: Complete
 - [ ] `dotnet test` returns 0
