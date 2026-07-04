@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { AdminLayout } from '@/components/AdminLayout'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { Home } from '@/pages/Home'
 import { Products } from '@/pages/Products'
 import { Cart } from '@/pages/Cart'
@@ -24,7 +25,14 @@ function App() {
         <Route path="/register" element={<Register />} />
       </Route>
 
-      <Route path="/admin" element={<AdminLayout />}>
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute requiredRole="Admin">
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<AdminDashboard />} />
         <Route path="products" element={<AdminProducts />} />
         <Route path="orders" element={<AdminOrders />} />
