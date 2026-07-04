@@ -60,10 +60,10 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(jwtKey)),
         ClockSkew = TimeSpan.FromMinutes(1),
-        // Use the short claim name so [Authorize(Roles = "Admin")] works
-        // against tokens issued by AuthController (which also writes "role").
+        // AuthController emits ClaimTypes.Role which JwtSecurityTokenHandler
+        // keeps as-is in the principal. Match that here.
         NameClaimType = System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub,
-        RoleClaimType = "role"
+        RoleClaimType = System.Security.Claims.ClaimTypes.Role
     };
 
     options.Events = new JwtBearerEvents
