@@ -1,12 +1,27 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using MiniEcommerce.Api.Data;
+using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Extensions;
 using MiniEcommerce.Api.Middleware;
 using MiniEcommerce.Api.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Fail fast if the JWT signing key is missing or too short.
+// HS256 requires >= 32 bytes (256 bits) of key material.
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32)
+{
+    throw new InvalidOperationException(
+        "Jwt:Key is missing or shorter than 32 bytes. " +
+        "Set it via environment variable (Jwt__Key), user secrets, or appsettings.{Environment}.json. " +
+        "Never commit a production key to source control.");
+}
 
 // EF Core + PostgreSQL
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -26,11 +41,93 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
 
+// JWT Authentication
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(jwtKey)),
+        ClockSkew = TimeSpan.FromMinutes(1),
+        // Use the short claim name so [Authorize(Roles = "Admin")] works
+        // against tokens issued by AuthController (which also writes "role").
+        NameClaimType = System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub,
+        RoleClaimType = "role"
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnChallenge = async context =>
+        {
+            context.HandleResponse();
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.ContentType = "application/json";
+
+            var response = ApiResponse.Fail(new ApiError
+            {
+                Code = "UNAUTHORIZED",
+                Message = "You must be authenticated to access this resource."
+            });
+
+            await context.Response.WriteAsJsonAsync(response);
+        },
+        OnForbidden = async context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            context.Response.ContentType = "application/json";
+
+            var response = ApiResponse.Fail(new ApiError
+            {
+                Code = "FORBIDDEN",
+                Message = "You do not have permission to access this resource."
+            });
+
+            await context.Response.WriteAsJsonAsync(response);
+        }
+    };
+});
+
 // Application services (repositories, image storage, payments)
 builder.Services.AddApplicationServices();
 
 // Add services to the container.
 builder.Services.AddControllers();
+
+// Unify DataAnnotations / automatic 400 responses with the project's ApiResponse envelope.
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var details = context.ModelState
+            .Where(kvp => kvp.Value is { Errors.Count: > 0 })
+            .ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray());
+
+        var error = new ApiError
+        {
+            Code = "VALIDATION_ERROR",
+            Message = "One or more validation errors occurred.",
+            Details = details
+        };
+
+        return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(ApiResponse.Fail(error))
+        {
+            ContentTypes = { "application/json" }
+        };
+    };
+});
 
 // CORS
 builder.Services.AddCors(options =>
@@ -100,6 +197,7 @@ app.UseCors("AllowFrontend");
 
 app.UseStaticFiles();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
