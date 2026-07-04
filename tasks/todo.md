@@ -92,10 +92,10 @@
 
 ## Phase 4: Cart & Checkout
 
-- [ ] **Task 9: Cart API Endpoints**
-  - [ ] 9a: GET /cart
-  - [ ] 9b: POST /cart/items + PUT /cart/items/:id + DELETE /cart/items/:id
-  - [ ] 9c: DELETE /cart (clear)
+- [x] **Task 9: Cart API Endpoints**
+  - [x] 9a: GET /cart
+  - [x] 9b: POST /cart/items + PUT /cart/items/:id + DELETE /cart/items/:id
+  - [x] 9c: DELETE /cart (clear)
 
 - [ ] **Task 10: Cart UI**
   - [ ] 10a: Cart store (TanStack Query) + hook
