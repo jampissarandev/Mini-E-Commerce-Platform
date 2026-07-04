@@ -103,9 +103,9 @@
   - [x] 10c: Cart sheet (shadcn Sheet)
   - [x] 10d: Add-to-cart from product pages
 
-- [ ] **Task 11: Checkout API**
-  - [ ] 11a: POST /orders (with stock re-validation, payment, stock deduction)
-  - [ ] 11b: GET /orders + GET /orders/:id
+- [x] **Task 11: Checkout API**
+  - [x] 11a: POST /orders (with stock re-validation, payment, stock deduction)
+  - [x] 11b: GET /orders + GET /orders/:id
 
 - [ ] **Task 12: Checkout UI**
   - [ ] 12a: Checkout form (shipping)
