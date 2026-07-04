@@ -123,10 +123,10 @@
 
 ## Phase 5: Admin Panel
 
-- [ ] **Task 13: Admin — Product Management API**
-  - [ ] 13a: GET /admin/products + POST /admin/products
-  - [ ] 13b: PUT /admin/products/:id + DELETE /admin/products/:id
-  - [ ] 13c: POST /admin/products/:id/images + DELETE /admin/products/:id/images/:imageId
+- [x] **Task 13: Admin — Product Management API**
+  - [x] 13a: GET /admin/products + POST /admin/products
+  - [x] 13b: PUT /admin/products/:id + DELETE /admin/products/:id
+  - [x] 13c: POST /admin/products/:id/images + DELETE /admin/products/:id/images/:imageId
 
 - [ ] **Task 14: Admin — Product Management UI**
   - [ ] 14a: Product data table
