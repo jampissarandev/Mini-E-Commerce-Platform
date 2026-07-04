@@ -112,7 +112,7 @@ builder.Services.AddAuthentication(options =>
 });
 
 // Application services (repositories, image storage, payments)
-builder.Services.AddApplicationServices();
+builder.Services.AddApplicationServices(builder.Configuration);
 
 // Add services to the container.
 builder.Services.AddControllers();

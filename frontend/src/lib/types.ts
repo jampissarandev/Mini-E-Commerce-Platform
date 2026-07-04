@@ -60,6 +60,14 @@ export interface CategoryDto {
   productCount: number
 }
 
+// Mock payment configuration — mirrors backend MockPaymentModeDto.
+export type MockPaymentMode = 'AlwaysSucceed' | 'AlwaysFail' | 'FailIfAmountGreaterThan'
+
+export interface MockPaymentModeDto {
+  mode: MockPaymentMode
+  failIfAmountGreaterThan: number | null
+}
+
 // Cart types — mirrors backend CartDto / CartItemDto.
 export interface CartItemDto {
   id: number

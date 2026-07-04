@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, ShoppingBag } from 'lucide-react'
+import { AlertTriangle, Loader2, ShoppingBag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -16,6 +16,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCart } from '@/lib/useCart'
 import { useCheckout } from '@/lib/useOrders'
+import { usePaymentMode } from '@/lib/usePaymentMode'
 import { useAuthStore } from '@/lib/auth-store'
 import { checkoutSchema, type CheckoutValues } from '@/lib/schemas/checkout'
 
@@ -31,9 +32,15 @@ const SHIPPING_FEE = 5.99
 export function Checkout() {
   const [serverError, setServerError] = useState<string | null>(null)
   const { data: cartData, isLoading: cartLoading } = useCart()
+  const { data: paymentModeData } = usePaymentMode()
   const checkout = useCheckout()
   const navigate = useNavigate()
   const fullName = useAuthStore((s) => s.user?.fullName ?? '')
+
+  const paymentMode = paymentModeData?.data
+  const showPaymentWarning =
+    paymentMode?.mode === 'AlwaysFail' ||
+    paymentMode?.mode === 'FailIfAmountGreaterThan'
 
   const items = cartData?.data.items ?? []
   const subtotal = cartData?.data.total ?? 0
@@ -101,6 +108,24 @@ export function Checkout() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Checkout</h1>
+
+      {showPaymentWarning && paymentMode && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+          data-testid="payment-mode-banner"
+        >
+          <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+          <div>
+            <p className="font-medium">Demo: payment is configured to fail.</p>
+            <p className="mt-1 text-amber-800">
+              {paymentMode.mode === 'AlwaysFail'
+                ? 'Every checkout will be declined by the mock payment service.'
+                : `Checkouts over $${paymentMode.failIfAmountGreaterThan?.toFixed(2)} will be declined by the mock payment service.`}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         {/* Shipping form */}

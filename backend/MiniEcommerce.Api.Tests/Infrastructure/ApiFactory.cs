@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MiniEcommerce.Api.Data;
 using MiniEcommerce.Api.Interfaces;
 using MiniEcommerce.Api.Services;
@@ -82,6 +83,35 @@ public class ApiFactory : WebApplicationFactory<Program>
                 new LocalImageStorage(
                     new TestWebHostEnvironment(TempWebRoot),
                     _.GetRequiredService<ILogger<LocalImageStorage>>()));
+
+            // IPaymentService reads its mode from a single mutable holder so
+            // tests can flip the failure-injection mode at runtime without
+            // rebuilding the service provider. The holder is a singleton and
+            // a live IOptions<T> wrapper is registered so both the service
+            // and PaymentsController see the current value.
+            var paymentHolder = new MockPaymentOptionsHolder();
+            services.AddSingleton(paymentHolder);
+            services.AddSingleton<IOptions<MockPaymentOptions>>(sp =>
+                new LiveMockPaymentOptions(sp.GetRequiredService<MockPaymentOptionsHolder>()));
+            services.AddScoped<IPaymentService>(sp =>
+                new MockPaymentService(
+                    sp.GetRequiredService<IOptions<MockPaymentOptions>>(),
+                    sp.GetRequiredService<ILogger<MockPaymentService>>()));
+        });
+    }
+
+    /// <summary>
+    /// Flips the mock payment service into the requested failure-injection
+    /// <paramref name="mode"/>. Visible to all subsequent scoped resolutions
+    /// for the lifetime of the test host.
+    /// </summary>
+    public void SetPaymentMode(MockPaymentMode mode, decimal failIfAmountGreaterThan = 1000m)
+    {
+        var holder = Services.GetRequiredService<MockPaymentOptionsHolder>();
+        holder.Set(new MockPaymentOptions
+        {
+            Mode = mode,
+            FailIfAmountGreaterThan = failIfAmountGreaterThan,
         });
     }
 

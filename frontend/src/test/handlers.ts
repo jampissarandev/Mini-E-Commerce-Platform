@@ -55,4 +55,13 @@ export const handlers = [
       meta: { page: 1, pageSize: 10, totalCount: 0, totalPages: 0 },
     }),
   ),
+
+  // Default mock-payment mode is AlwaysSucceed so the Checkout page does
+  // not show a dev banner unless a test opts in to a failure-injection mode.
+  http.get(/\/api\/payments\/mock-mode$/, () =>
+    HttpResponse.json({
+      success: true,
+      data: { mode: 'AlwaysSucceed', failIfAmountGreaterThan: null },
+    }),
+  ),
 ]

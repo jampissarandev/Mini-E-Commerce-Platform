@@ -209,4 +209,46 @@ describe('Checkout page', () => {
       expect(screen.getByText('Cart Page')).toBeInTheDocument()
     })
   })
+
+  it('hides the payment-mode banner when mode is AlwaysSucceed', async () => {
+    server.use(
+      http.get(/\/api\/payments\/mock-mode$/, () =>
+        HttpResponse.json({
+          success: true,
+          data: { mode: 'AlwaysSucceed', failIfAmountGreaterThan: null },
+        }),
+      ),
+    )
+    renderCheckout()
+    await screen.findByText('Laptop Pro')
+    expect(screen.queryByTestId('payment-mode-banner')).not.toBeInTheDocument()
+  })
+
+  it('shows the payment-mode banner when mode is AlwaysFail', async () => {
+    server.use(
+      http.get(/\/api\/payments\/mock-mode$/, () =>
+        HttpResponse.json({
+          success: true,
+          data: { mode: 'AlwaysFail', failIfAmountGreaterThan: null },
+        }),
+      ),
+    )
+    renderCheckout()
+    const banner = await screen.findByTestId('payment-mode-banner')
+    expect(banner).toHaveTextContent(/payment is configured to fail/i)
+  })
+
+  it('shows the payment-mode banner with threshold when mode is FailIfAmountGreaterThan', async () => {
+    server.use(
+      http.get(/\/api\/payments\/mock-mode$/, () =>
+        HttpResponse.json({
+          success: true,
+          data: { mode: 'FailIfAmountGreaterThan', failIfAmountGreaterThan: 50 },
+        }),
+      ),
+    )
+    renderCheckout()
+    const banner = await screen.findByTestId('payment-mode-banner')
+    expect(banner).toHaveTextContent(/\$50\.00/)
+  })
 })

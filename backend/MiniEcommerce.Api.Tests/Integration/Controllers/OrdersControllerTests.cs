@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Tests.Infrastructure;
 
@@ -89,6 +90,67 @@ public class OrdersControllerTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
         body!.Error!.Code.Should().Be("INSUFFICIENT_STOCK");
+    }
+
+    [Fact]
+    public async Task Checkout_WhenPaymentFails_Returns400AndDoesNotCreateOrderOrDeductStock()
+    {
+        // Flip the mock payment service into AlwaysFail mode for this test.
+        // Reset to default at the end so other tests in the class are unaffected.
+        _factory.SetPaymentMode(MiniEcommerce.Api.Services.MockPaymentMode.AlwaysFail);
+        try
+        {
+            var client = _factory.CreateClient();
+            var token = await RegisterAndLoginAsync(client, "order-payfail-1@example.com");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var productId = _productIds[0];
+
+            // Capture the initial stock and order count.
+            int initialStock;
+            int initialOrderCount;
+            using (var context = _factory.CreateDbContext())
+            {
+                var product = await context.Products.FindAsync(productId);
+                initialStock = product!.Stock;
+                initialOrderCount = await context.Orders.CountAsync();
+            }
+
+            // Put the product in the cart.
+            await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+            {
+                ProductId = productId,
+                Quantity = 2,
+            });
+
+            // Checkout — payment will fail.
+            var response = await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest());
+
+            response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
+            body!.Success.Should().BeFalse();
+            body.Error!.Code.Should().Be("PAYMENT_FAILED");
+            body.Error.Message.Should().NotBeNullOrEmpty();
+
+            // No order was created, no stock was deducted, and the cart still
+            // contains the item so the user can retry.
+            using (var context = _factory.CreateDbContext())
+            {
+                var product = await context.Products.FindAsync(productId);
+                product!.Stock.Should().Be(initialStock, "stock must be unchanged when payment fails");
+
+                var currentOrderCount = await context.Orders.CountAsync();
+                currentOrderCount.Should().Be(initialOrderCount, "no order must be persisted when payment fails");
+            }
+
+            var cart = await client.GetFromJsonAsync<ApiResponse<CartDto>>("/api/cart", Json);
+            cart!.Data!.Items.Should().HaveCount(1, "cart must be preserved on payment failure");
+            cart.Data.Items[0].ProductId.Should().Be(productId);
+        }
+        finally
+        {
+            _factory.SetPaymentMode(MiniEcommerce.Api.Services.MockPaymentMode.AlwaysSucceed);
+        }
     }
 
     [Fact]
