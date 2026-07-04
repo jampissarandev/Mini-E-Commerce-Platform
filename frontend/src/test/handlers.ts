@@ -15,4 +15,20 @@ export const handlers = [
   http.get(`${baseUrl}/api/health`, () =>
     HttpResponse.json({ status: 'ok' }),
   ),
+
+  // Product catalog endpoints — use regex to avoid matching /products/:id
+  http.get(/\/api\/products$/, () =>
+    HttpResponse.json({
+      success: true,
+      data: [],
+      meta: { page: 1, pageSize: 10, totalCount: 0, totalPages: 0 },
+    }),
+  ),
+
+  http.get(/\/api\/categories$/, () =>
+    HttpResponse.json({
+      success: true,
+      data: [],
+    }),
+  ),
 ]
