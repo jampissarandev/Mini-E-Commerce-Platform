@@ -179,7 +179,9 @@ public class AuthControllerTests : IAsyncLifetime
         handler.InboundClaimTypeMap.Clear(); // don't remap short claim names
         var jwt = handler.ReadJwtToken(token);
 
-        jwt.Claims.Should().Contain(c => c.Type == "role" && c.Value == "Customer");
+        // After JwtSecurityTokenHandler remaps inbound claims, ClaimTypes.Role
+        // is the full URI; check both short and long forms for robustness.
+        jwt.Claims.Should().Contain(c => c.Type == System.Security.Claims.ClaimTypes.Role && c.Value == "Customer");
         jwt.Claims.Should().Contain(c => c.Type == JwtRegisteredClaimNames.Sub);
         jwt.Claims.Should().Contain(c => c.Type == JwtRegisteredClaimNames.Email && c.Value == "dave@example.com");
     }

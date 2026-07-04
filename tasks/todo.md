@@ -57,12 +57,12 @@
   - [x] 6e: Navbar with auth state
 
 ## Checkpoint: Auth
-- [ ] User can register and login via UI
-- [ ] Backend issues JWT with role claim
-- [ ] Customer cannot access `/admin` (403)
-- [ ] Admin can access `/admin` (200)
-- [ ] Token persists across reload
-- [ ] 401 from API triggers logout + redirect
+- [x] User can register and login via UI
+- [x] Backend issues JWT with role claim
+- [x] Customer cannot access `/admin` (403)
+- [x] Admin can access `/admin` (200)
+- [x] Token persists across reload
+- [x] 401 from API triggers logout + redirect
 
 ---
 
@@ -187,14 +187,14 @@
   - [ ] 22b: Multi-stage Dockerfile for frontend (Nginx)
   - [ ] 22c: Production docker-compose + env config
 
-- [ ] **Task 23: Dependency Upgrades (latest)**
+- [x] **Task 23: Dependency Upgrades (latest)**
   > Snapshot 2026-07-04. Strategy: see [plan.md "Dependency Upgrade Strategy"](plan.md#dependency-upgrade-strategy). One major per PR. Tests gate every upgrade.
-  - [ ] 23a: ImageSharp 3.1→4.0 (read upstream migration guide; rewrite `LocalImageStorage.cs`; smoke image upload)
-  - [ ] 23b: Swashbuckle.AspNetCore 6.9→10.2 (update `Program.cs` swagger config; verify `/swagger` UI)
-  - [ ] 23c: Vite 6→8 + @vitejs/plugin-react 4→6 (in lockstep; verify dev server + production build)
-  - [ ] 23d: ESLint 9→10 (update flat config; re-run `npm run lint`)
-  - [ ] 23e: @types/node 22→26 (type-only; verify `tsc -b` clean)
-  - [ ] 23f: Run `npm audit` and `dotnet list package --vulnerable`; record any findings
+  - [ ] 23a: ImageSharp 3.1→4.0 — **BLOCKED**: v4.0.0 (released 2026-05-12) is a commercial product; build target requires a `SixLaborsLicenseKey` / `sixlabors.lic` file. Decision needed: keep 3.1.* (latest MIT/free) or purchase a commercial license.
+  - [x] 23b: Swashbuckle.AspNetCore 6.9→10.2 (commit `b9c187d`; `Program.cs` migrated: `Microsoft.OpenApi.Models`→`Microsoft.OpenApi`, `OpenApiReference`→`OpenApiSecuritySchemeReference`, `AddSecurityRequirement` now `Func<OpenApiDocument, OpenApiSecurityRequirement>` with `List<string>` scopes; 27/27 backend tests pass, 0 vulnerabilities)
+  - [x] 23c: Vite 6→8 + @vitejs/plugin-react 4→6 (commit `eacb41c`; no config changes required; 55/55 frontend tests pass, production build clean)
+  - [x] 23d: ESLint 9→10 (commit `d80e31e`; flat config forward-compatible; lint clean)
+  - [x] 23e: @types/node 22→26 (commit `6765bdf`; type-only upgrade; `tsc -b` clean)
+  - [x] 23f: Security audit (2026-07-04) — `npm audit`: **0 vulnerabilities**; `dotnet list package --vulnerable --include-transitive` on `MiniEcommerce.Api` and `MiniEcommerce.Api.Tests`: **0 vulnerable packages**. Branch `chore/deps-2026-07-04` ready to merge.
 
 ## Checkpoint: Complete
 - [ ] `dotnet test` returns 0

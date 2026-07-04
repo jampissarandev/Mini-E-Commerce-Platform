@@ -163,10 +163,10 @@ public class AuthController : ControllerBase
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new("fullname", user.FullName),
-            // Emit the short "role" claim name to match the RoleClaimType configured
-            // in Program.cs. Using ClaimTypes.Role would produce the legacy long URI
-            // and break the symmetry with [Authorize(Roles = "Admin")].
-            new("role", role)
+            // Emit the standard ClaimTypes.Role so that after JwtSecurityTokenHandler
+            // remaps it, the principal has a role claim whose Type matches the
+            // RoleClaimType configured in Program.cs.
+            new(System.Security.Claims.ClaimTypes.Role, role)
         };
 
         var token = new JwtSecurityToken(
