@@ -88,3 +88,38 @@ export interface AddCartItemRequest {
 export interface UpdateCartItemRequest {
   quantity: number
 }
+
+// Order types — mirrors backend OrderDto / OrderItemDto / CheckoutRequest.
+export interface CheckoutRequest {
+  fullName: string
+  street: string
+  city: string
+  postalCode: string
+  country: string
+  phone: string
+}
+
+export interface OrderItemDto {
+  id: number
+  productId: number
+  productName: string
+  unitPrice: number
+  quantity: number
+  subtotal: number
+}
+
+export interface OrderDto {
+  id: number
+  status: string
+  subtotal: number
+  shippingFee: number
+  total: number
+  shippingFullName: string
+  shippingStreet: string
+  shippingCity: string
+  shippingPostalCode: string
+  shippingCountry: string
+  shippingPhone: string
+  createdAt: string
+  items: OrderItemDto[]
+}

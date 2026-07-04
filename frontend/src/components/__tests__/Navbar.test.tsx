@@ -97,6 +97,11 @@ describe('Navbar', () => {
       expect(screen.queryByRole('link', { name: /register/i })).not.toBeInTheDocument()
     })
 
+    it('shows Orders link', () => {
+      renderNavbar()
+      expect(screen.getByRole('link', { name: /orders/i })).toHaveAttribute('href', '/orders')
+    })
+
     it('does not show Admin link', () => {
       renderNavbar()
       expect(screen.queryByRole('link', { name: /admin/i })).not.toBeInTheDocument()
@@ -130,6 +135,11 @@ describe('Navbar', () => {
     it('shows Admin link', () => {
       renderNavbar()
       expect(screen.getByRole('link', { name: /admin/i })).toBeInTheDocument()
+    })
+
+    it('shows Orders link', () => {
+      renderNavbar()
+      expect(screen.getByRole('link', { name: /orders/i })).toBeInTheDocument()
     })
 
     it('shows user greeting', () => {

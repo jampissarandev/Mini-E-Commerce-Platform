@@ -88,7 +88,12 @@ public class OrdersController : ControllerBase
         {
             UserId = userId,
             Status = OrderStatus.Pending,
-            ShippingAddress = request.ShippingAddress,
+            ShippingFullName = request.FullName,
+            ShippingStreet = request.Street,
+            ShippingCity = request.City,
+            ShippingPostalCode = request.PostalCode,
+            ShippingCountry = request.Country,
+            ShippingPhone = request.Phone,
             Subtotal = subtotal,
             ShippingFee = ShippingFee,
             Total = total,
@@ -221,7 +226,12 @@ public class OrdersController : ControllerBase
             Subtotal = order.Subtotal,
             ShippingFee = order.ShippingFee,
             Total = order.Total,
-            ShippingAddress = order.ShippingAddress,
+            ShippingFullName = order.ShippingFullName,
+            ShippingStreet = order.ShippingStreet,
+            ShippingCity = order.ShippingCity,
+            ShippingPostalCode = order.ShippingPostalCode,
+            ShippingCountry = order.ShippingCountry,
+            ShippingPhone = order.ShippingPhone,
             CreatedAt = order.CreatedAt,
             Items = order.Items.Select(i => new OrderItemDto
             {

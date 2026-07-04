@@ -42,10 +42,7 @@ public class OrdersControllerTests : IAsyncLifetime
     {
         var client = _factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
-        {
-            ShippingAddress = "123 Test Street"
-        });
+        var response = await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest());
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -57,10 +54,7 @@ public class OrdersControllerTests : IAsyncLifetime
         var token = await RegisterAndLoginAsync(client, "order-empty-1@example.com");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
-        {
-            ShippingAddress = "123 Test Street"
-        });
+        var response = await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest());
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
@@ -90,10 +84,7 @@ public class OrdersControllerTests : IAsyncLifetime
             await context.SaveChangesAsync();
         }
 
-        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
-        {
-            ShippingAddress = "123 Test Street"
-        });
+        var response = await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest());
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
@@ -116,7 +107,12 @@ public class OrdersControllerTests : IAsyncLifetime
 
         var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
         {
-            ShippingAddress = ""
+            FullName = "Jane Doe",
+            Street = "",
+            City = "Cityville",
+            PostalCode = "12345",
+            Country = "USA",
+            Phone = "+1-555-0100"
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -146,7 +142,12 @@ public class OrdersControllerTests : IAsyncLifetime
 
         var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
         {
-            ShippingAddress = "456 Main Avenue, Cityville"
+            FullName = "Jane Doe",
+            Street = "456 Main Avenue",
+            City = "Cityville",
+            PostalCode = "12345",
+            Country = "USA",
+            Phone = "+1-555-0100"
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -156,11 +157,40 @@ public class OrdersControllerTests : IAsyncLifetime
         body.Data.Should().NotBeNull();
         body.Data!.Id.Should().BeGreaterThan(0);
         body.Data.Status.Should().Be("Paid");
-        body.Data.ShippingAddress.Should().Be("456 Main Avenue, Cityville");
+        body.Data.ShippingFullName.Should().Be("Jane Doe");
+        body.Data.ShippingStreet.Should().Be("456 Main Avenue");
+        body.Data.ShippingCity.Should().Be("Cityville");
+        body.Data.ShippingPostalCode.Should().Be("12345");
+        body.Data.ShippingCountry.Should().Be("USA");
+        body.Data.ShippingPhone.Should().Be("+1-555-0100");
         body.Data.Items.Should().HaveCount(2);
         body.Data.Subtotal.Should().BeGreaterThan(0);
         body.Data.Total.Should().Be(body.Data.Subtotal + body.Data.ShippingFee);
         body.Data.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task Checkout_MissingRequiredField_Returns400()
+    {
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "order-missing@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductId = _productIds[0],
+            Quantity = 1
+        });
+
+        // Missing FullName, City, Country
+        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
+        {
+            Street = "456 Main Avenue",
+            PostalCode = "12345",
+            Phone = "+1-555-0100"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -186,10 +216,7 @@ public class OrdersControllerTests : IAsyncLifetime
             Quantity = 3
         });
 
-        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
-        {
-            ShippingAddress = "789 Oak Lane"
-        });
+        var response = await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest());
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
@@ -219,10 +246,7 @@ public class OrdersControllerTests : IAsyncLifetime
             Quantity = 2
         });
 
-        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
-        {
-            ShippingAddress = "321 Pine Road"
-        });
+        var response = await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest());
 
         var body = await response.Content.ReadFromJsonAsync<ApiResponse<OrderDto>>(Json);
         var orderItem = body!.Data!.Items.Should().ContainSingle().Which;
@@ -275,10 +299,7 @@ public class OrdersControllerTests : IAsyncLifetime
             ProductId = _productIds[0],
             Quantity = 1
         });
-        await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
-        {
-            ShippingAddress = "User A Address"
-        });
+        await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest(fullName: "User A"));
 
         // User B places an order
         var tokenB = await RegisterAndLoginAsync(client, "order-list-b@example.com");
@@ -288,10 +309,7 @@ public class OrdersControllerTests : IAsyncLifetime
             ProductId = _productIds[1],
             Quantity = 1
         });
-        await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
-        {
-            ShippingAddress = "User B Address"
-        });
+        await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest(fullName: "User B"));
 
         // User A should only see their order
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
@@ -299,7 +317,7 @@ public class OrdersControllerTests : IAsyncLifetime
 
         var body = await response.Content.ReadFromJsonAsync<ApiResponse<List<OrderDto>>>(Json);
         body!.Data!.Should().HaveCount(1);
-        body.Data![0].ShippingAddress.Should().Be("User A Address");
+        body.Data![0].ShippingFullName.Should().Be("User A");
     }
 
     [Fact]
@@ -317,10 +335,7 @@ public class OrdersControllerTests : IAsyncLifetime
                 ProductId = _productIds[i],
                 Quantity = 1
             });
-            await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
-            {
-                ShippingAddress = $"Page Test Address {i}"
-            });
+            await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest());
         }
 
         // page=1, pageSize=2 → 2 items, total=3, totalPages=2
@@ -352,10 +367,7 @@ public class OrdersControllerTests : IAsyncLifetime
                 ProductId = _productIds[i],
                 Quantity = 1
             });
-            await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
-            {
-                ShippingAddress = $"Size Test {i}"
-            });
+            await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest());
         }
 
         // page=2, pageSize=1 → 1 item (the second-newest)
@@ -428,13 +440,9 @@ public class OrdersControllerTests : IAsyncLifetime
             ProductId = _productIds[0],
             Quantity = 1
         });
-        var orderResponse = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
-        {
-            ShippingAddress = "User A"
-        });
+        var orderResponse = await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest());
         var orderBody = await orderResponse.Content.ReadFromJsonAsync<ApiResponse<OrderDto>>(Json);
         var orderId = orderBody!.Data!.Id;
-
         // User B tries to access User A's order
         var tokenB = await RegisterAndLoginAsync(client, "order-get-b@example.com");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenB);
@@ -457,10 +465,7 @@ public class OrdersControllerTests : IAsyncLifetime
             ProductId = productId,
             Quantity = 2
         });
-        var createResponse = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
-        {
-            ShippingAddress = "100 Checkout Lane"
-        });
+        var createResponse = await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest());
         var created = (await createResponse.Content.ReadFromJsonAsync<ApiResponse<OrderDto>>(Json))!;
 
         var response = await client.GetAsync($"/api/orders/{created.Data!.Id}");
@@ -469,13 +474,27 @@ public class OrdersControllerTests : IAsyncLifetime
         var body = await response.Content.ReadFromJsonAsync<ApiResponse<OrderDto>>(Json);
         body!.Success.Should().BeTrue();
         body.Data!.Id.Should().Be(created.Data.Id);
-        body.Data.ShippingAddress.Should().Be("100 Checkout Lane");
+        body.Data.ShippingFullName.Should().Be("Jane Doe");
         body.Data.Items.Should().HaveCount(1);
         body.Data.Items[0].ProductId.Should().Be(productId);
         body.Data.Items[0].Quantity.Should().Be(2);
     }
 
     // ─────────────── helpers ───────────────
+
+    /// <summary>
+    /// Builds a valid <see cref="CheckoutRequest"/>. The optional <paramref name="fullName"/>
+    /// lets tests assert that user A vs user B see only their own order.
+    /// </summary>
+    private static CheckoutRequest ValidCheckoutRequest(string fullName = "Jane Doe") => new()
+    {
+        FullName = fullName,
+        Street = "100 Checkout Lane",
+        City = "Cityville",
+        PostalCode = "12345",
+        Country = "USA",
+        Phone = "+1-555-0100",
+    };
 
     private static async Task<string> RegisterAndLoginAsync(HttpClient client, string email)
     {

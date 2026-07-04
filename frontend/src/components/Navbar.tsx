@@ -19,6 +19,14 @@ export function Navbar() {
           >
             Products
           </Link>
+          {isAuthenticated() && (
+            <Link
+              to="/orders"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Orders
+            </Link>
+          )}
           {isAuthenticated() && isAdmin() && (
             <Link
               to="/admin"

@@ -7,7 +7,12 @@ public class Order
     public decimal Subtotal { get; set; }
     public decimal ShippingFee { get; set; }
     public decimal Total { get; set; }
-    public string ShippingAddress { get; set; } = string.Empty;
+    public string ShippingFullName { get; set; } = string.Empty;
+    public string ShippingStreet { get; set; } = string.Empty;
+    public string ShippingCity { get; set; } = string.Empty;
+    public string ShippingPostalCode { get; set; } = string.Empty;
+    public string ShippingCountry { get; set; } = string.Empty;
+    public string ShippingPhone { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public string UserId { get; set; } = string.Empty;

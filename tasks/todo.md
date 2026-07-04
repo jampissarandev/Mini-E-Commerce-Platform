@@ -107,10 +107,10 @@
   - [x] 11a: POST /orders (with stock re-validation, payment, stock deduction)
   - [x] 11b: GET /orders + GET /orders/:id
 
-- [ ] **Task 12: Checkout UI**
-  - [ ] 12a: Checkout form (shipping)
-  - [ ] 12b: Order confirmation page
-  - [ ] 12c: Order history page
+- [x] **Task 12: Checkout UI**
+  - [x] 12a: Checkout form (shipping)
+  - [x] 12b: Order confirmation page
+  - [x] 12c: Order history page
 
 ## Checkpoint: Cart & Checkout
 - [ ] Customer can add items to cart from list and detail pages
