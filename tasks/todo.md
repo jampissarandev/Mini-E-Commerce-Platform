@@ -73,20 +73,20 @@
   - [x] 7b: GET /products/:id
   - [x] 7c: GET /categories
 
-- [ ] **Task 8: Product Catalog UI**
-  - [ ] 8a: Product card component + grid
-  - [ ] 8b: Category filter + search bar (URL-driven)
-  - [ ] 8c: Pagination component
-  - [ ] 8d: Product list page
-  - [ ] 8e: Product detail page
-  - [ ] 8f: TanStack Query hooks for products
+- [x] **Task 8: Product Catalog UI**
+  - [x] 8a: Product card component + grid
+  - [x] 8b: Category filter + search bar (URL-driven)
+  - [x] 8c: Pagination component
+  - [x] 8d: Product list page
+  - [x] 8e: Product detail page
+  - [x] 8f: TanStack Query hooks for products
 
 ## Checkpoint: Catalog
-- [ ] `/products` shows all seeded products with images
-- [ ] Search and category filter work
-- [ ] Pagination updates URL and fetches correctly
-- [ ] `/products/:slug` shows product detail
-- [ ] Skeleton loaders and empty states render
+- [x] `/products` shows all seeded products with images
+- [x] Search and category filter work
+- [x] Pagination updates URL and fetches correctly
+- [x] `/products/:id` shows product detail
+- [x] Skeleton loaders and empty states render
 
 ---
 
