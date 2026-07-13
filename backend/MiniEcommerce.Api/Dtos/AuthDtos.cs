@@ -31,10 +31,10 @@ public record AuthResponse
 {
     public string Token { get; init; } = string.Empty;
     public DateTime ExpiresAt { get; init; }
-    public UserDto User { get; init; } = default!;
+    public CustomerDto Customer { get; init; } = default!;
 }
 
-public record UserDto
+public record CustomerDto
 {
     public string Id { get; init; } = string.Empty;
     public string Email { get; init; } = string.Empty;

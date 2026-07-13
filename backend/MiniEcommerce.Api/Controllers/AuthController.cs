@@ -119,7 +119,7 @@ public class AuthController : ControllerBase
     /// </summary>
     [Authorize]
     [HttpGet("me")]
-    [ProducesResponseType(typeof(ApiResponse<UserDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<CustomerDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetCurrentUser()
     {
@@ -134,7 +134,7 @@ public class AuthController : ControllerBase
         var roles = await _userManager.GetRolesAsync(user);
         var role = roles.FirstOrDefault() ?? "Customer";
 
-        var userDto = new UserDto
+        var customerDto = new CustomerDto
         {
             Id = user.Id,
             Email = user.Email ?? string.Empty,
@@ -143,7 +143,7 @@ public class AuthController : ControllerBase
             CreatedAt = user.CreatedAt
         };
 
-        return Ok(ApiResponse<UserDto>.Ok(userDto));
+        return Ok(ApiResponse<CustomerDto>.Ok(customerDto));
     }
 
     private async Task<AuthResponse> GenerateAuthResponseAsync(ApplicationUser user)
@@ -159,7 +159,7 @@ public class AuthController : ControllerBase
         {
             Token = token,
             ExpiresAt = expiresAt,
-            User = new UserDto
+            Customer = new CustomerDto
             {
                 Id = user.Id,
                 Email = user.Email ?? string.Empty,

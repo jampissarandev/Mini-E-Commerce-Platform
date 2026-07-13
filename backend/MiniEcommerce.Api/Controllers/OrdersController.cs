@@ -42,13 +42,13 @@ public class OrdersController : ControllerBase
         [FromBody] CheckoutRequest request,
         CancellationToken cancellationToken = default)
     {
-        var userId = _userManager.GetUserId(User)!;
+        var customerId = _userManager.GetUserId(User)!;
 
         // Load the cart with items and products
         var cart = await _context.Carts
             .Include(c => c.Items)
             .ThenInclude(ci => ci.Product)
-            .FirstOrDefaultAsync(c => c.UserId == userId, cancellationToken);
+            .FirstOrDefaultAsync(c => c.CustomerId == customerId, cancellationToken);
 
         if (cart is null || cart.Items.Count == 0)
         {
@@ -86,7 +86,7 @@ public class OrdersController : ControllerBase
         // Create the order
         var order = new Order
         {
-            UserId = userId,
+            CustomerId = customerId,
             Status = OrderStatus.Pending,
             ShippingFullName = request.FullName,
             ShippingStreet = request.Street,
@@ -160,10 +160,10 @@ public class OrdersController : ControllerBase
         if (pageSize < 1) pageSize = 10;
         if (pageSize > 100) pageSize = 100;
 
-        var userId = _userManager.GetUserId(User)!;
+        var customerId = _userManager.GetUserId(User)!;
 
         var query = _context.Orders
-            .Where(o => o.UserId == userId);
+            .Where(o => o.CustomerId == customerId);
 
         var totalCount = await query.CountAsync(cancellationToken);
 
@@ -196,11 +196,11 @@ public class OrdersController : ControllerBase
         int id,
         CancellationToken cancellationToken = default)
     {
-        var userId = _userManager.GetUserId(User)!;
+        var customerId = _userManager.GetUserId(User)!;
 
         var order = await _context.Orders
             .Include(o => o.Items)
-            .FirstOrDefaultAsync(o => o.Id == id && o.UserId == userId, cancellationToken);
+            .FirstOrDefaultAsync(o => o.Id == id && o.CustomerId == customerId, cancellationToken);
 
         if (order is null)
         {
