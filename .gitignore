@@ -42,3 +42,6 @@ nul
 .env
 appsettings.*.local.json
 secrets.json
+
+## Local agent-skills install (Matt Pocock skills copied to repo root)
+/skills/
