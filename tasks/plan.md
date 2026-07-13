@@ -11,9 +11,23 @@ A full-stack e-commerce application with customer-facing shopping and admin mana
 - **JWT Authentication** — Stateless, works well with React + API separation
 - **Route-based Role Guards** — Single frontend build, role-based access control on routes
 - **Strategy Pattern for Extensibility** — Image storage and payment services use strategy pattern for easy swapping (local→cloud, mock→Stripe)
-- **Database-First via EF Core Migrations** — Standard ASP.NET Core approach
+- **Code-First via EF Core Migrations** — Entities in C#; `dotnet ef migrations add` generates the SQL; standard ASP.NET Core approach
 - **Docker + docker-compose** — Local development and VPS deployment ready
 - **Tailwind CSS + shadcn/ui** — Modern, customizable UI components
+
+---
+
+## Domain Model
+
+The language for this codebase lives in [`../CONTEXT.md`](../CONTEXT.md) (terms with `Avoid` lists). The architectural decisions live in `docs/adr/`. Every task that touches a domain concept must be cross-checked against these.
+
+**Architecture decision records:**
+
+- `docs/adr/0001-cancellation-policy.md` — Admin-only cancel; restock-always
+- `docs/adr/0002-atomic-stock-deduction.md` — Atomic SQL UPDATE for stock at checkout
+- `docs/adr/0003-product-variants.md` — Product (model) + ProductVariant (sellable unit)
+- `docs/adr/0004-customer-address-book.md` — Customer-owned Address book + Order snapshot
+- `docs/adr/0005-token-refresh.md` — Short-lived JWT + silent refresh via httpOnly cookie
 
 ---
 
@@ -256,6 +270,8 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 ##### Task 3a: Define User (Identity) + Role entities
 **Description:** Configure ASP.NET Core Identity backed by EF Core. Extend `IdentityUser` with `FullName` and `CreatedAt`. Use `IdentityRole` for `Customer` and `Admin`.
 
+> **Note:** Phase 7 Task 22 (ADR 0005) extends this with a `RefreshTokens` table; Task 23 (ADR 0004) extends with an `Addresses` table. The `Customer` term is canonical for the person who places orders (see `../CONTEXT.md`); `User` is reserved for ASP.NET Core Identity internals.
+
 **Acceptance criteria:**
 - [ ] `ApplicationUser : IdentityUser` with `FullName`, `CreatedAt`
 - [ ] `ApplicationDbContext : IdentityDbContext<ApplicationUser>` registered in DI
@@ -274,6 +290,8 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 
 ##### Task 3b: Define Category + Product + ProductImage entities
 **Description:** Add catalog entities. `Product` has many `ProductImage` rows (ordered by `SortOrder`). `Category` is a self-referencing tree (optional `ParentCategoryId`).
+
+> **Note:** `Product` is the *model* (display aggregate: name, description, base price, primary image). The sellable unit is `ProductVariant` and carries its own `Stock` and `Sku`. See Phase 7 Task 24 (ADR 0003). This task ships the v0 schema without Variants; Task 24 extends it. `Category` is a tree via `ParentCategoryId`; the catalog UI may render the tree or flatten for filter chips (see `../CONTEXT.md`).
 
 **Acceptance criteria:**
 - [ ] `Category { Id, Name, Slug, ParentCategoryId? }` with unique slug index
@@ -431,6 +449,8 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 
 ##### Task 4d: IPaymentService interface + MockPaymentService
 **Description:** Define payment strategy and ship a mock implementation that always succeeds after a simulated 200 ms delay and returns a fake transaction ID.
+
+> **Note:** v1 ships `AlwaysSucceed`-only so the failure path in Task 11a is unreached. Phase 7 Task 25 extends the mock with `AlwaysFail` and `FailIfAmountGreaterThan` modes (see `../CONTEXT.md` → Payment) so the 402 path is testable end-to-end.
 
 **Acceptance criteria:**
 - [ ] `IPaymentService` interface: `Task<PaymentResult> ChargeAsync(PaymentRequest, CancellationToken)`
@@ -717,6 +737,8 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 ##### Task 7c: GET /categories
 **Description:** Public endpoint listing all categories as a flat list with product counts.
 
+> **Note:** `Category` is a tree via `ParentCategoryId`. The default response is the flat list below; the API must additionally expose a nested tree shape (e.g. `GET /categories/tree`) so the catalog UI can render expand/collapse (see `../CONTEXT.md` → Category).
+
 **Acceptance criteria:**
 - [ ] Response: `CategoryDto[] { Id, Name, Slug, ProductCount }`
 - [ ] Ordered by `Name` ascending
@@ -1002,6 +1024,12 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 ##### Task 11a: POST /orders
 **Description:** Creates an order from the current cart. Re-validates stock and prices, charges via `IPaymentService`, deducts stock, clears cart, returns the created order.
 
+> **Note (stock):** Use the atomic SQL UPDATE pattern from ADR 0002 — `UPDATE Products SET Stock = Stock - @qty WHERE Id = @id AND Stock >= @qty` — and gate the response on `rowsAffected`. This replaces the in-memory re-validate-then-deduct loop and fixes the concurrent-checkout race the plan's risk register already names. If payment fails *after* stock was already decremented, the controller must restock the items it deducted before returning 402.
+>
+> **Note (shipping fee):** `ShippingFee` is a single config-driven constant read from `appsettings.json` (`Shipping:Fee`) via `IOptions<ShippingOptions>`. Do not hardcode in the controller. Per-region rates, free-shipping thresholds, tax, and multi-currency are explicitly out of scope (see `../CONTEXT.md` → Money).
+>
+> **Note (variants):** When Task 24 (ADR 0003) lands, the atomic UPDATE targets `ProductVariants`, not `Products`, and `Stock` lives on the Variant.
+
 **Acceptance criteria:**
 - [ ] Request: `CheckoutRequest { ShippingAddress, ShippingFee? }`
 - [ ] Validates cart not empty (400 `EMPTY_CART`)
@@ -1270,6 +1298,8 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 
 ##### Task 15c: PUT /admin/orders/:id/status
 **Description:** Admin status transitions with guard rails.
+
+> **Note:** Cancellation is admin-only — Customers cannot self-cancel. On `Cancelled` (from any non-terminal state), items are restocked to `Product.Stock` (idempotent: a no-op if the order was `Pending` and stock had not yet been deducted). See `docs/adr/0001-cancellation-policy.md`.
 
 **Acceptance criteria:**
 - [ ] Body: `{ status }`
@@ -1609,11 +1639,11 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | ASP.NET Core Identity + EF Core + PostgreSQL configuration | High | Test early in 3a with docker-compose, verify connection string |
-| JWT auth between SPA and API (CORS, token refresh) | Medium | Configure CORS in 1d, store token in Zustand + localStorage, add refresh in a later phase |
+| JWT auth between SPA and API (CORS, token refresh) | Medium | Configure CORS in 1d, store token in Zustand + localStorage; silent refresh via httpOnly cookie lands in Phase 7 Task 22 (ADR 0005) |
 | Image upload handling (local path, serving) | Medium | Use `IImageStorage` interface (4c), serve via static files middleware |
 | shadcn/ui + Tailwind config conflicts | Low | Follow shadcn init guide carefully in 2b |
 | Front-end state complexity (cart + auth) | Medium | Use Zustand for client state (auth), TanStack Query for server state (cart, products, orders) |
-| Stock race conditions during checkout | Medium | Wrap stock validation + deduction in a DB transaction (11a) |
+| Stock race conditions during checkout | ~~Medium~~ → **Resolved (ADR 0002)** | ~~Wrap stock validation + deduction in a DB transaction (11a)~~ → Replaced by atomic SQL UPDATE: `UPDATE Products SET Stock = Stock - @qty WHERE Id = @id AND Stock >= @qty`; gate on `rowsAffected`. See `docs/adr/0002-atomic-stock-deduction.md` and Task 11a note. |
 | Hard-delete of products in use | Medium | Block hard delete when referenced (13b) |
 | Test flakiness with shared DB | Medium | Testcontainers per test class in 18a |
 
@@ -1625,8 +1655,96 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 - [x] Docker/VPS -> docker-compose for dev and prod ✅
 - [x] UI Library -> Tailwind CSS + shadcn/ui ✅
 - [x] Email -> Out of scope, architecture allows later addition ✅
-- [ ] Token refresh strategy: silent refresh vs re-login? (defer; current scope is login-only)
-- [ ] Image CDN signing for production? (defer; out of scope)
+- [x] Token refresh strategy -> **Silent refresh via httpOnly cookie**; see `docs/adr/0005-token-refresh.md` and Phase 7 Task 22 ✅
+- [x] Image CDN signing for production -> **Defer to production**; `IImageStorage` is the swap point, no work needed in v1 ✅
+- [ ] Tax / multi-currency / discount -> explicitly out of scope for v1 (see `../CONTEXT.md` → Money)
+- [ ] Returns / refunds -> out of scope; mock payment has no refund path (real provider lands out of v1)
+
+---
+
+### Phase 7: Domain Model Refinements
+
+These tasks implement the deferred ADRs from the domain-modeling session. Each sub-task is S or M sized so a single agent can implement, test, and verify in a focused session. The ADR for each task is the source of truth; this section only re-states scope, sizing, and acceptance shape.
+
+#### Task 21: Apply atomic stock deduction (ADR 0002)
+Update `OrdersController.Checkout` to use the atomic SQL UPDATE pattern and add the restock-on-payment-fail path. Replaces the in-memory re-validate-then-deduct loop in Task 11a.
+
+**Sub-tasks:**
+- **21a** — Add `ExecuteSqlInterpolatedAsync` per cart item; check `rowsAffected`; return 400 `INSUFFICIENT_STOCK` on 0. (S)
+- **21b** — Add the restock loop: if `IPaymentService.ChargeAsync` returns `Success = false`, atomic-UPDATE each cart item back to the original quantity before returning 402. (S)
+- **21c** — Remove the now-redundant in-memory re-validate-then-deduct in Task 11a. (S)
+- **21d** — Tests: (a) happy path; (b) two concurrent checkouts for the last unit — exactly one succeeds; (c) payment fail mid-checkout — stock fully restored. (M)
+
+**Dependencies:** 11a, ADR 0002
+**Files likely touched:** `Controllers/OrdersController.cs`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
+
+---
+
+#### Task 22: Add silent token refresh (ADR 0005)
+Add a `RefreshTokens` table and the `/api/auth/refresh` + `/api/auth/logout` endpoints. The frontend axios interceptor retries a 401 once via refresh before logging the user out.
+
+**Sub-tasks:**
+- **22a** — Add `RefreshTokens` table (store `TokenHash`, not the token) + EF migration. (S)
+- **22b** — `POST /api/auth/refresh` (httpOnly cookie in, access token out, rotation: old token `RevokedAt` + `ReplacedById` → new token). (M)
+- **22c** — `POST /api/auth/logout` (revoke active refresh, clear cookie). (S)
+- **22d** — Frontend axios interceptor: 401 → refresh → retry once. (M)
+- **22e** — Adjust `Jwt:RefreshExpiresInDays` (default 30) in `appsettings.json`. (S)
+
+**Dependencies:** 5a, ADR 0005
+**Files likely touched:** `Models/RefreshToken.cs`, `Data/ApplicationDbContext.cs`, `Controllers/AuthController.cs`, `Dtos/Auth/*`, `frontend/src/lib/api.ts`, `frontend/src/lib/auth-store.ts`
+
+---
+
+#### Task 23: Add Customer Address Book (ADR 0004)
+A Customer has 0..n `Address` rows with one `IsDefault`. At checkout the customer picks an existing Address or types a one-off one. The chosen Address is snapshotted onto the Order as flat `Shipping*` fields.
+
+**Sub-tasks:**
+- **23a** — Add `Addresses` table + EF migration. (S)
+- **23b** — `GET /api/addresses`, `POST /api/addresses`, `PUT /api/addresses/:id`, `DELETE /api/addresses/:id`, `PUT /api/addresses/:id/default`. Setting `IsDefault = true` unsets it on others in the same transaction. (M)
+- **23c** — Frontend `/account/addresses` page: list, edit, delete, set default. (M)
+- **23d** — Checkout form: address picker (existing or new) + "save this address" checkbox. (M)
+- **23e** — Wire `CheckoutRequest` to accept an `addressId` and snapshot the address onto the Order. (S)
+
+**Dependencies:** 3a, ADR 0004
+**Files likely touched:** `Models/Address.cs`, `Data/ApplicationDbContext.cs`, `Controllers/AddressesController.cs`, `Dtos/Address/*`, `frontend/src/pages/account/Addresses.tsx`, `frontend/src/pages/Checkout.tsx`
+
+---
+
+#### Task 24: Add Product Variants (ADR 0003)
+`Product` is a model; `ProductVariant` is the sellable unit with its own `Stock` and `Sku`. `CartItem` and `OrderItem` reference a Variant, not a Product.
+
+**Sub-tasks:**
+- **24a** — Add `ProductVariants` table (Id, ProductId, Sku, Size?, Color?, Stock, IsActive) + EF migration. Drop `Product.Stock`. (M)
+- **24b** — Update `GET /products` + `GET /products/:id` to expose variants. (M)
+- **24c** — Switch `CartItem.ProductId` → `CartItem.ProductVariantId`; same for `OrderItem`. Update `OrderItem.ProductName` snapshot to include chosen `Size`/`Color`. (M)
+- **24d** — Frontend `ProductCard` (group variants) + `ProductDetail` (variant picker: size, color). (M)
+- **24e** — Update Task 11a's atomic UPDATE to target `ProductVariants`, not `Products`. (S)
+
+**Dependencies:** 3b, 11a, ADR 0003
+**Files likely touched:** `Models/ProductVariant.cs`, `Data/ApplicationDbContext.cs`, `Controllers/ProductsController.cs`, `Controllers/CartController.cs`, `Controllers/OrdersController.cs`, `Dtos/Product/*`, `frontend/src/pages/ProductDetail.tsx`, `frontend/src/components/ProductCard.tsx`
+
+---
+
+#### Task 25: Add payment mock failure modes (CONTEXT.md → Payment)
+Extend `MockPaymentService` with `AlwaysSucceed` (default) | `AlwaysFail` | `FailIfAmountGreaterThan(threshold)` so the 402 path in Task 11a is testable end-to-end. Mode is bound from `appsettings.json` (`Payment:Mock:Mode`).
+
+**Sub-tasks:**
+- **25a** — Add `Mode` enum + `FailIfAmountGreaterThan` threshold. (S)
+- **25b** — Bind mode from `appsettings.json` via `IOptions<PaymentMockOptions>`. (S)
+- **25c** — Tests: `OrdersController` returns 402 `PAYMENT_FAILED` for `AlwaysFail`; restock loop runs (per Task 21b). (M)
+
+**Dependencies:** 4d, 21b
+**Files likely touched:** `Services/MockPaymentService.cs`, `Dtos/Payment/PaymentMockOptions.cs`, `backend/MiniEcommerce.Api.Tests/Unit/Services/MockPaymentServiceTests.cs`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
+
+---
+
+#### Checkpoint: Domain Refinements
+- [ ] Concurrent checkouts for the last unit — exactly one succeeds (Task 21)
+- [ ] Refresh rotation works; concurrent refresh limited to one active token per customer (Task 22)
+- [ ] Customer can save, edit, delete addresses; checkout uses the address book (Task 23)
+- [ ] Product variants render in catalog; cart + checkout reference variants; stock is per-variant (Task 24)
+- [ ] Payment failure mode triggers 402 + stock restore; failure path is covered by integration test (Task 25)
+- [ ] `docs/adr/*` and `../CONTEXT.md` unchanged after the tasks (ADRs are the source of truth, not the implementation)
 
 ---
 
