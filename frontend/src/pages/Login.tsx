@@ -44,7 +44,7 @@ export function Login() {
       const body = response.data
 
       if (body.success && body.data) {
-        login({ token: body.data.token, user: body.data.user })
+        login({ token: body.data.token, customer: body.data.customer })
         navigate('/')
       } else {
         setServerError(body.error?.message ?? 'Login failed. Please try again.')

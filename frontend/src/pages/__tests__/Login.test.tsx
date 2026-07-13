@@ -24,7 +24,7 @@ function renderLogin() {
 
 beforeEach(() => {
   localStorage.clear()
-  useAuthStore.setState({ token: null, user: null })
+  useAuthStore.setState({ token: null, customer: null })
 })
 
 describe('Login page', () => {
@@ -87,7 +87,7 @@ describe('Login page', () => {
           data: {
             token: 'jwt-token-123',
             expiresAt: '2026-12-31T23:59:59Z',
-            user: {
+            customer: {
               id: '1',
               email: 'alice@example.com',
               fullName: 'Alice Wonderland',
@@ -109,8 +109,8 @@ describe('Login page', () => {
     await waitFor(() => {
       const state = useAuthStore.getState()
       expect(state.token).toBe('jwt-token-123')
-      expect(state.user?.email).toBe('alice@example.com')
-      expect(state.user?.role).toBe('Customer')
+      expect(state.customer?.email).toBe('alice@example.com')
+      expect(state.customer?.role).toBe('Customer')
     })
   })
 
@@ -152,7 +152,7 @@ describe('Login page', () => {
           data: {
             token: 'jwt-token',
             expiresAt: '2026-12-31T23:59:59Z',
-            user: {
+            customer: {
               id: '1',
               email: 'a@b.com',
               fullName: 'A',

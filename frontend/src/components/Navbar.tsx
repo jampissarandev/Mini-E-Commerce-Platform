@@ -4,7 +4,7 @@ import { CartBadge } from '@/components/CartBadge'
 import { useAuthStore } from '@/lib/auth-store'
 
 export function Navbar() {
-  const { user, isAuthenticated, isAdmin, logout } = useAuthStore()
+  const { customer, isAuthenticated, isAdmin, logout } = useAuthStore()
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -41,7 +41,7 @@ export function Navbar() {
           {isAuthenticated() ? (
             <>
               <span className="text-sm text-muted-foreground hidden sm:inline">
-                Welcome, {user?.fullName}
+                Welcome, {customer?.fullName}
               </span>
               <Button variant="outline" size="sm" onClick={logout}>
                 Log out

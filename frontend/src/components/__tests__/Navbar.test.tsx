@@ -27,7 +27,7 @@ beforeEach(() => {
 
 beforeEach(() => {
   localStorage.clear()
-  useAuthStore.setState({ token: null, user: null })
+  useAuthStore.setState({ token: null, customer: null })
 })
 
 describe('Navbar', () => {
@@ -67,7 +67,7 @@ describe('Navbar', () => {
     beforeEach(() => {
       useAuthStore.getState().login({
         token: 'token',
-        user: {
+        customer: {
           id: '1',
           email: 'alice@example.com',
           fullName: 'Alice Wonderland',
@@ -114,7 +114,7 @@ describe('Navbar', () => {
       await user.click(screen.getByRole('button', { name: /log out/i }))
 
       expect(useAuthStore.getState().token).toBeNull()
-      expect(useAuthStore.getState().user).toBeNull()
+      expect(useAuthStore.getState().customer).toBeNull()
     })
   })
 
@@ -122,7 +122,7 @@ describe('Navbar', () => {
     beforeEach(() => {
       useAuthStore.getState().login({
         token: 'admin-token',
-        user: {
+        customer: {
           id: '1',
           email: 'admin@example.com',
           fullName: 'Admin User',
