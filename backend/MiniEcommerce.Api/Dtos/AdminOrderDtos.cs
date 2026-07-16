@@ -1,17 +1,37 @@
+using System.ComponentModel.DataAnnotations;
+using MiniEcommerce.Api.Models;
+using MiniEcommerce.Api.Services;
+
 namespace MiniEcommerce.Api.Dtos;
 
 // ═══════════════════ Request DTOs ═══════════════════
 
 /// <summary>
 /// Request body for <c>PUT /api/admin/orders/{id}/status</c>.
-/// Validation is performed in the controller action rather than via
-/// <c>[Required]</c> or <c>IValidatableObject</c> so that validation
-/// failures are consistently returned as <c>ApiResponse</c> with error
-/// code <c>VALIDATION_ERROR</c> through <c>ExceptionMiddleware</c>.
+///
+/// Validation runs through the framework's DataAnnotations pipeline. The
+/// project's <c>InvalidModelStateResponseFactory</c> in <c>Program.cs</c>
+/// maps model-state failures to an <c>ApiResponse</c> with error code
+/// <c>VALIDATION_ERROR</c> — same envelope the rest of the API uses.
 /// </summary>
-public record UpdateOrderStatusRequest
+public record UpdateOrderStatusRequest : IValidatableObject
 {
+    [Required(ErrorMessage = "Status is required.")]
     public string Status { get; init; } = string.Empty;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        // [Required] handles the missing/empty case; only validate the
+        // enum-membership here.
+        if (string.IsNullOrWhiteSpace(Status)) yield break;
+
+        if (!Enum.TryParse<OrderStatus>(Status, ignoreCase: false, out _))
+        {
+            yield return new ValidationResult(
+                $"Status '{Status}' is not a valid order status. Valid values: {string.Join(", ", Enum.GetNames<OrderStatus>())}.",
+                new[] { nameof(Status) });
+        }
+    }
 }
 
 // ═══════════════════ Response DTOs ═══════════════════

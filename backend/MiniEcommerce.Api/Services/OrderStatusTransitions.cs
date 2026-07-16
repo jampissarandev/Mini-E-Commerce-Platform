@@ -31,4 +31,12 @@ public static class OrderStatusTransitions
     /// </summary>
     public static IReadOnlySet<OrderStatus> AllowedNexts(OrderStatus current)
         => Allowed.TryGetValue(current, out var next) ? next : FrozenSet<OrderStatus>.Empty;
+
+    /// <summary>
+    /// Returns <c>true</c> if <paramref name="to"/> is an allowed next
+    /// status from <paramref name="from"/>. Always returns <c>false</c> for
+    /// terminal <paramref name="from"/> states.
+    /// </summary>
+    public static bool CanTransition(OrderStatus from, OrderStatus to)
+        => Allowed.TryGetValue(from, out var next) && next.Contains(to);
 }

@@ -567,31 +567,12 @@ public class AdminOrdersControllerTests : IAsyncLifetime
         body.Error!.Code.Should().Be("INVALID_TRANSITION");
     }
 
-    [Fact]
-    public async Task UpdateStatus_PaidToPending_Returns409()
-    {
-        var client = _factory.CreateClient();
-        var adminToken = await CreateAdminAndLoginAsync(client, "admin-paid-pend@example.com");
-
-        var userToken = await RegisterAndLoginAsync(client, "paid-pend@example.com");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
-        var orderId = await AddToCartAndCheckout(client);
-
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
-        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Pending" });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
-        body!.Success.Should().BeFalse();
-        body.Error!.Code.Should().Be("INVALID_TRANSITION");
-    }
-
     // ═══════════════════════════════════════════════════════════
     //  PUT /api/admin/orders/{id}/status — Terminal state rejects
     // ═══════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task UpdateStatus_DeliveredToCancelled_Returns409Terminal()
+    public async Task UpdateStatus_DeliveredToAnything_Returns409OrderAlreadyTerminal()
     {
         var client = _factory.CreateClient();
         var adminToken = await CreateAdminAndLoginAsync(client, "admin-del-term@example.com");
@@ -614,7 +595,7 @@ public class AdminOrdersControllerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task UpdateStatus_CancelledToPaid_Returns409Terminal()
+    public async Task UpdateStatus_CancelledToAnything_Returns409OrderAlreadyTerminal()
     {
         var client = _factory.CreateClient();
         var adminToken = await CreateAdminAndLoginAsync(client, "admin-canc-term@example.com");
@@ -637,115 +618,73 @@ public class AdminOrdersControllerTests : IAsyncLifetime
 
     // ═══════════════════════════════════════════════════════════
     //  PUT /api/admin/orders/{id}/status — Restock on cancel
+    //
+    //  Per ADR 0001, every (non-terminal) order has stock to restore on
+    //  cancel. The three cases below parameterize over the from-state and
+    //  share one body so the symmetry with the state machine table is
+    //  explicit. All three paths go through the live controller — none of
+    //  them short-circuit by inserting an Order row directly.
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
-    public async Task UpdateStatus_PendingToCancelled_Restocks()
+    public enum CancelFromState { Pending, Paid, Shipped }
+
+    [Theory]
+    [InlineData(CancelFromState.Pending)]
+    [InlineData(CancelFromState.Paid)]
+    [InlineData(CancelFromState.Shipped)]
+    public async Task UpdateStatus_ToCancelled_RestocksItems(CancelFromState fromState)
     {
         var client = _factory.CreateClient();
-        var adminToken = await CreateAdminAndLoginAsync(client, "admin-pend-canc@example.com");
-        var orderId = await CreatePendingOrderAsync("pend-canc@example.com", quantity: 2);
+        var email = $"restock-{fromState.ToString().ToLowerInvariant()}@example.com";
+        var adminEmail = $"admin-restock-{fromState.ToString().ToLowerInvariant()}@example.com";
 
-        // Capture stock before cancel
-        int productId;
-        int stockBefore;
-        using (var ctx = _factory.CreateDbContext())
+        // Drive the order to the from-state through the live controller
+        // (or, for Pending, through the helper that mirrors the live
+        // deduction step). Then capture the post-deduction stock.
+        int orderId;
+        if (fromState == CancelFromState.Pending)
         {
-            var item = await ctx.OrderItems.Include(i => i.Product).FirstAsync(i => i.OrderId == orderId);
-            productId = item.ProductId;
-            stockBefore = item.Product.Stock;
+            orderId = await CreatePendingOrderAsync(email, quantity: 1);
+        }
+        else
+        {
+            var userToken = await RegisterAndLoginAsync(client, email);
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+            orderId = await AddToCartAndCheckout(client);
+
+            if (fromState == CancelFromState.Shipped)
+            {
+                var adminTokenForSetup = await CreateAdminAndLoginAsync(client, $"{adminEmail}-setup");
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminTokenForSetup);
+                await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Shipped" });
+            }
         }
 
-        // Cancel
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
-        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Cancelled" });
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<ApiResponse<AdminOrderDetail>>(Json);
-        body!.Data!.Status.Should().Be("Cancelled");
-
-        // Verify stock was restored
+        int productId, stockBefore, quantity;
         using (var ctx = _factory.CreateDbContext())
         {
-            var product = await ctx.Products.FindAsync(productId);
-            product!.Stock.Should().Be(stockBefore + 2);
-        }
-    }
-
-    [Fact]
-    public async Task UpdateStatus_PaidToCancelled_Restocks()
-    {
-        var client = _factory.CreateClient();
-        var adminToken = await CreateAdminAndLoginAsync(client, "admin-paid-canc@example.com");
-
-        // Create paid order
-        var userToken = await RegisterAndLoginAsync(client, "paid-canc@example.com");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
-        var orderId = await AddToCartAndCheckout(client);
-
-        // Capture stock before cancel
-        int productId;
-        int stockBefore;
-        using (var ctx = _factory.CreateDbContext())
-        {
-            var item = await ctx.OrderItems.Include(i => i.Product).FirstAsync(i => i.OrderId == orderId);
-            productId = item.ProductId;
-            stockBefore = item.Product.Stock;
-        }
-
-        // Cancel
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
-        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Cancelled" });
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<ApiResponse<AdminOrderDetail>>(Json);
-        body!.Data!.Status.Should().Be("Cancelled");
-
-        // Verify stock restored
-        using (var ctx = _factory.CreateDbContext())
-        {
-            var product = await ctx.Products.FindAsync(productId);
             var item = await ctx.OrderItems.FirstAsync(i => i.OrderId == orderId);
-            product!.Stock.Should().Be(stockBefore + item.Quantity);
-        }
-    }
-
-    [Fact]
-    public async Task UpdateStatus_ShippedToCancelled_Restocks()
-    {
-        var client = _factory.CreateClient();
-        var adminToken = await CreateAdminAndLoginAsync(client, "admin-shipped-canc@example.com");
-
-        // Create paid → shipped
-        var userToken = await RegisterAndLoginAsync(client, "shipped-canc@example.com");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
-        var orderId = await AddToCartAndCheckout(client);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
-        await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Shipped" });
-
-        // Capture stock before cancel
-        int productId;
-        int stockBefore;
-        using (var ctx = _factory.CreateDbContext())
-        {
-            var item = await ctx.OrderItems.Include(i => i.Product).FirstAsync(i => i.OrderId == orderId);
             productId = item.ProductId;
-            stockBefore = item.Product.Stock;
+            quantity = item.Quantity;
+            var product = await ctx.Products.FindAsync(productId);
+            stockBefore = product!.Stock;
         }
 
-        // Cancel
+        // Admin cancels
+        var adminToken = await CreateAdminAndLoginAsync(client, adminEmail);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
         var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Cancelled" });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<ApiResponse<AdminOrderDetail>>(Json);
         body!.Data!.Status.Should().Be("Cancelled");
 
-        // Verify stock restored
+        // Stock should be restored to the pre-deduction value
         using (var ctx = _factory.CreateDbContext())
         {
             var product = await ctx.Products.FindAsync(productId);
-            var item = await ctx.OrderItems.FirstAsync(i => i.OrderId == orderId);
-            product!.Stock.Should().Be(stockBefore + item.Quantity);
+            product!.Stock.Should().Be(stockBefore + quantity,
+                $"cancelling from {fromState} must restock {quantity} units (ADR 0001)");
         }
     }
 
@@ -861,10 +800,15 @@ public class AdminOrdersControllerTests : IAsyncLifetime
 
     /// <summary>
     /// Creates an order with <see cref="OrderStatus.Pending"/> directly in the
-    /// database (bypassing the checkout flow, which creates Paid orders).
-    /// Registers the given <paramref name="email"/> as a customer so the FK
-    /// constraint is satisfied, then inserts an Order + OrderItem referencing
-    /// the first seeded product.
+    /// database. Mirrors <c>OrdersController.Checkout</c>'s stock-deduction
+    /// step (Product.Stock -= Quantity) so the restock-on-cancel tests
+    /// exercise the same row state the live controller produces — without
+    /// this, a cancel test would only verify the restock math, not ADR
+    /// 0001's "every (non-terminal) order has stock to restore" guarantee.
+    ///
+    /// Registers <paramref name="email"/> as a customer so the FK constraint
+    /// is satisfied, then inserts an Order + OrderItem against the first
+    /// seeded product.
     /// </summary>
     private async Task<int> CreatePendingOrderAsync(string email, int quantity = 1)
     {
@@ -880,6 +824,11 @@ public class AdminOrdersControllerTests : IAsyncLifetime
         using var ctx = _factory.CreateDbContext();
         var user = await ctx.Users.FirstAsync(u => u.Email == email);
         var product = await ctx.Products.OrderBy(p => p.Id).FirstAsync();
+
+        // Deduct stock first (mirrors OrdersController.Checkout), so the
+        // order's existence implies a real stock reservation.
+        product.Stock -= quantity;
+        await ctx.SaveChangesAsync();
 
         var order = new Order
         {

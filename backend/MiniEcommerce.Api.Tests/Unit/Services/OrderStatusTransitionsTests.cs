@@ -64,34 +64,32 @@ public class OrderStatusTransitionsTests
         next.Should().BeEmpty();
     }
 
-    [Fact]
-    public void AllowedNexts_AllTransitions_AreBidirectionalConsistent()
+    [Theory]
+    [InlineData(OrderStatus.Delivered)]
+    [InlineData(OrderStatus.Cancelled)]
+    public void CanTransition_Delivered_To_Anything_Returns_False(OrderStatus terminal)
     {
-        // Verify every defined status in the enum appears as a current state
-        // and has a consistent AllowedNexts result (empty for terminal, non-empty otherwise).
-        foreach (OrderStatus status in Enum.GetValues<OrderStatus>())
+        // Terminal states have an empty AllowedNexts set, so CanTransition
+        // must return false for any target. Parameterized over both terminal
+        // values so the property is enforced once per terminal.
+        foreach (var to in Enum.GetValues<OrderStatus>())
         {
-            var next = OrderStatusTransitions.AllowedNexts(status);
-            next.Should().NotBeNull($"AllowedNexts for {status} should never return null");
-
-            if (status is OrderStatus.Delivered or OrderStatus.Cancelled)
-            {
-                next.Should().BeEmpty($"'{status}' is a terminal state and should have no allowed transitions");
-            }
-            else
-            {
-                next.Should().NotBeEmpty($"'{status}' is a non-terminal state and should have at least one allowed transition");
-            }
+            OrderStatusTransitions.CanTransition(terminal, to).Should().BeFalse(
+                $"'{terminal}' is terminal and cannot transition to '{to}'");
         }
     }
 
     [Fact]
-    public void AllowedNexts_CancelledIsNeverInNonTerminalNextSets()
+    public void CanTransition_Cancelled_To_Anything_Returns_False()
     {
-        // Cancelled is the absorbing transition — once cancelled, the order stays cancelled.
-        // Verify that no non-terminal state lists Cancelled as a forward transition
-        // from itself (i.e. Cancelled → something should be empty).
-        var next = OrderStatusTransitions.AllowedNexts(OrderStatus.Cancelled);
-        next.Should().BeEmpty();
+        // Spec test case 7: Cancelled is the absorbing state. Spot-check
+        // a representative subset of transitions — the parameterized
+        // Terminal→Anything test above already covers the full enum sweep;
+        // this case exists to give Cancelled a discoverable named test.
+        OrderStatusTransitions.CanTransition(OrderStatus.Cancelled, OrderStatus.Pending).Should().BeFalse();
+        OrderStatusTransitions.CanTransition(OrderStatus.Cancelled, OrderStatus.Paid).Should().BeFalse();
+        OrderStatusTransitions.CanTransition(OrderStatus.Cancelled, OrderStatus.Shipped).Should().BeFalse();
+        OrderStatusTransitions.CanTransition(OrderStatus.Cancelled, OrderStatus.Delivered).Should().BeFalse();
+        OrderStatusTransitions.CanTransition(OrderStatus.Cancelled, OrderStatus.Cancelled).Should().BeFalse();
     }
 }

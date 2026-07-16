@@ -208,24 +208,13 @@ public class AdminOrdersController : ControllerBase
         CancellationToken cancellationToken)
     {
         // ── Request validation ──────────────────────────────────────
-        // Manual validation (not [Required] / IValidatableObject) so the
-        // response is consistently an ApiResponse with code VALIDATION_ERROR
-        // through ExceptionMiddleware, rather than the framework's default
-        // ProblemDetails format.
-
-        if (string.IsNullOrWhiteSpace(request.Status))
-        {
-            throw new ValidationException(
-                "Status is required.",
-                code: "VALIDATION_ERROR");
-        }
-
-        if (!Enum.TryParse<OrderStatus>(request.Status, ignoreCase: false, out var requestedStatus))
-        {
-            throw new ValidationException(
-                $"Status '{request.Status}' is not a valid order status. Valid values: {string.Join(", ", Enum.GetNames<OrderStatus>())}.",
-                code: "VALIDATION_ERROR");
-        }
+        // The DTO is decorated with [Required] and IValidatableObject; the
+        // InvalidModelStateResponseFactory in Program.cs maps failures to
+        // ApiResponse<>.Fail with code VALIDATION_ERROR, same as the rest
+        // of the API. The framework's TryParse is case-sensitive so "paid"
+        // also 400s — matches the spec's "rejects any string not in the
+        // OrderStatus enum" wording.
+        var requestedStatus = Enum.Parse<OrderStatus>(request.Status);
 
         // ── Load order ─────────────────────────────────────────────
         var order = await _context.Orders
