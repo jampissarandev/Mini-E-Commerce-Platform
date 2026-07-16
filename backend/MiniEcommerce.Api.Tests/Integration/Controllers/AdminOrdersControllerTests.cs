@@ -3,12 +3,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using MiniEcommerce.Api.Data;
 using MiniEcommerce.Api.Dtos;
-using MiniEcommerce.Api.Models;
 using MiniEcommerce.Api.Tests.Infrastructure;
 
 namespace MiniEcommerce.Api.Tests.Integration.Controllers;
@@ -445,6 +441,9 @@ public class AdminOrdersControllerTests : IAsyncLifetime
         return body!.Data!.Id;
     }
 
+    /// <summary>
+    /// Registers a fresh Customer, logs them in, and returns the JWT.
+    /// </summary>
     private static async Task<string> RegisterAndLoginAsync(HttpClient client, string email)
     {
         await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest
@@ -462,6 +461,13 @@ public class AdminOrdersControllerTests : IAsyncLifetime
         return body!.Data!.Token;
     }
 
+    /// <summary>
+    /// Registers a user, promotes them to Admin via the shared
+    /// <see cref="DbContextExtensions.SeedAdminAsync"/> host extension, then
+    /// logs them in and returns the Admin JWT. The role flip lives in test
+    /// infrastructure (not the controller surface) to match the role
+    /// management pattern used by <c>Data/Seed.cs</c>.
+    /// </summary>
     private async Task<string> CreateAdminAndLoginAsync(HttpClient client, string email)
     {
         await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest
@@ -471,18 +477,7 @@ public class AdminOrdersControllerTests : IAsyncLifetime
             FullName = "Admin User"
         });
 
-        using var scope = _factory.Services.CreateScope();
-        var userManager = scope.ServiceProvider
-            .GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
-        var user = await userManager.FindByEmailAsync(email);
-        if (user is not null)
-        {
-            // Remove the Customer role assigned by Register, then add Admin.
-            // This ensures GenerateAuthResponseAsync sees "Admin" first and
-            // emits it as the JWT "role" claim.
-            await userManager.RemoveFromRoleAsync(user, "Customer");
-            await userManager.AddToRoleAsync(user, "Admin");
-        }
+        await _factory.SeedAdminAsync(email);
 
         var login = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest
         {

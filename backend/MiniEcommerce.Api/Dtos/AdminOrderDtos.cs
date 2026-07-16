@@ -17,9 +17,7 @@ public record AdminOrderListItem
 
 /// <summary>
 /// Full detail of an order for the admin view. Includes customer identity,
-/// all items with computed subtotals, shipping address, and totals.
-/// Used by both <c>GET /api/admin/orders/:id</c> (15b) and
-/// <c>PUT /api/admin/orders/:id/status</c> (15c, echoes updated order).
+/// all items with snapshotted subtotals, shipping address, and totals.
 /// </summary>
 public record AdminOrderDetail
 {
@@ -53,5 +51,12 @@ public record AdminOrderItemDto
     public string ProductName { get; init; } = string.Empty;
     public decimal UnitPrice { get; init; }
     public int Quantity { get; init; }
-    public decimal Subtotal => UnitPrice * Quantity;
+
+    /// <summary>
+    /// Snapshotted line subtotal (<c>UnitPrice * Quantity</c>) computed at
+    /// server-side mapping time. Kept as an <c>init</c>-only property so it
+    /// survives deserialisation and re-serialisation as a fixed historical
+    /// value, per the snapshot contract in <c>CONTEXT.md</c> rule #10.
+    /// </summary>
+    public decimal Subtotal { get; init; }
 }

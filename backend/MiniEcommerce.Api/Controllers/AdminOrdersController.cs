@@ -3,17 +3,21 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MiniEcommerce.Api.Data;
 using MiniEcommerce.Api.Dtos;
+using MiniEcommerce.Api.Exceptions;
 using MiniEcommerce.Api.Models;
 
 namespace MiniEcommerce.Api.Controllers;
 
 /// <summary>
-/// Admin-only endpoints for managing orders: list, detail (15b), and
-/// status transitions (15c). Mounted at <c>/api/admin/orders</c>.
+/// Admin-only endpoints for managing orders: list (15a), detail (15b),
+/// and status transitions (15c). Mounted at <c>/api/admin/orders</c>.
+///
+/// Role gating is on each action explicitly (not the class) per the
+/// project standard in <c>CONTEXT.md</c> rule #4 — see also the rationale
+/// in the code review for ticket 15b.
 /// </summary>
 [ApiController]
 [Route("api/admin/orders")]
-[Authorize(Roles = "Admin")]
 public class AdminOrdersController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
@@ -39,6 +43,7 @@ public class AdminOrdersController : ControllerBase
     /// <param name="to">ISO-8601 date (exclusive upper bound at day level: to=2026-07-13 means before 2026-07-14 00:00 UTC).</param>
     /// <param name="cancellationToken"></param>
     [HttpGet]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<List<AdminOrderListItem>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetOrders(
         [FromQuery] int page = 1,
@@ -53,22 +58,17 @@ public class AdminOrdersController : ControllerBase
         if (pageSize < 1) pageSize = 20;
         if (pageSize > 100) pageSize = 100;
 
-        // Validate status filter
+        // Validate status filter (throws → ExceptionMiddleware maps to 400).
         OrderStatus? statusFilter = null;
         if (!string.IsNullOrWhiteSpace(status))
         {
-            if (Enum.TryParse<OrderStatus>(status, ignoreCase: true, out var parsed))
+            if (!Enum.TryParse<OrderStatus>(status, ignoreCase: true, out var parsed))
             {
-                statusFilter = parsed;
+                throw new ValidationException(
+                    $"'{status}' is not a valid OrderStatus value.",
+                    code: "INVALID_STATUS");
             }
-            else
-            {
-                return BadRequest(ApiResponse.Fail(new ApiError
-                {
-                    Code = "INVALID_STATUS",
-                    Message = $"'{status}' is not a valid OrderStatus value."
-                }));
-            }
+            statusFilter = parsed;
         }
 
         // Parse date range (from/to are date-only strings, interpreted as UTC midnight)
@@ -131,16 +131,7 @@ public class AdminOrdersController : ControllerBase
         var orders = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(o => new AdminOrderListItem
-            {
-                Id = o.Id,
-                CustomerId = o.CustomerId,
-                CustomerEmail = o.Customer.Email ?? string.Empty,
-                Status = o.Status.ToString(),
-                Total = o.Total,
-                ItemCount = o.Items.Sum(i => i.Quantity),
-                CreatedAt = o.CreatedAt
-            })
+            .Select(o => AdminOrderMapping.ToListItem(o))
             .ToListAsync(cancellationToken);
 
         return Ok(ApiResponse<List<AdminOrderListItem>>.Ok(orders, new Meta
@@ -157,11 +148,12 @@ public class AdminOrdersController : ControllerBase
 
     /// <summary>
     /// Get the full detail of any order — customer identity, items with
-    /// snapshotted names and prices, shipping address, and totals.
+    /// snapshotted names, prices and subtotals, shipping address, and totals.
     /// </summary>
     /// <param name="id">Order ID.</param>
     /// <param name="cancellationToken"></param>
     [HttpGet("{id:int}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<AdminOrderDetail>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetOrderById(int id, CancellationToken cancellationToken)
@@ -171,45 +163,14 @@ public class AdminOrdersController : ControllerBase
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
 
+        // Throws → ExceptionMiddleware maps to 404 with code "ORDER_NOT_FOUND".
         if (order is null)
         {
-            return NotFound(ApiResponse.Fail(new ApiError
-            {
-                Code = "ORDER_NOT_FOUND",
-                Message = $"Order with id {id} was not found."
-            }));
+            throw new NotFoundException(
+                $"Order with id {id} was not found.",
+                code: "ORDER_NOT_FOUND");
         }
 
-        var dto = new AdminOrderDetail
-        {
-            Id = order.Id,
-            Status = order.Status.ToString(),
-            Subtotal = order.Subtotal,
-            ShippingFee = order.ShippingFee,
-            Total = order.Total,
-            ShippingFullName = order.ShippingFullName,
-            ShippingStreet = order.ShippingStreet,
-            ShippingCity = order.ShippingCity,
-            ShippingPostalCode = order.ShippingPostalCode,
-            ShippingCountry = order.ShippingCountry,
-            ShippingPhone = order.ShippingPhone,
-            CreatedAt = order.CreatedAt,
-            Customer = new AdminOrderCustomer
-            {
-                Id = order.CustomerId,
-                Email = order.Customer.Email ?? string.Empty,
-                FullName = order.Customer.FullName
-            },
-            Items = order.Items.Select(i => new AdminOrderItemDto
-            {
-                Id = i.Id,
-                ProductId = i.ProductId,
-                ProductName = i.ProductName,
-                UnitPrice = i.UnitPrice,
-                Quantity = i.Quantity
-            }).ToList()
-        };
-
-        return Ok(ApiResponse<AdminOrderDetail>.Ok(dto));
+        return Ok(ApiResponse<AdminOrderDetail>.Ok(AdminOrderMapping.ToDetail(order)));
     }
 }
