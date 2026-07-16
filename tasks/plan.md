@@ -73,6 +73,10 @@ The original 20 tasks are L or XL in scope (5–10+ files, multiple subsystems).
 
 **Sizing legend:** `S` = 1–2 files · `M` = 3–5 files · `L` = 5–8 files · `XL` = 8+ files (never used — always broken down further).
 
+> **Source of truth.** `plan.md` owns the architecture, the ADR cross-references, the task definitions, and the acceptance criteria. `todo.md` is a working mirror of the actionable checklist and is re-synced from `plan.md` after every task-graph change. When they disagree, **plan.md wins** — fix `todo.md` to match.
+>
+> **Phase numbering convention.** Phases 1–5 are feature work, Phase 6 is testing & polish, Phase 7 is the deferred ADR work (Tasks 24–28 in `todo.md`; Tasks 21–25 in the historical `plan.md` numbering preserved here for ADRs that already cite it).
+
 ---
 
 ## Parallelization Matrix
@@ -270,7 +274,7 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 ##### Task 3a: Define User (Identity) + Role entities
 **Description:** Configure ASP.NET Core Identity backed by EF Core. Extend `IdentityUser` with `FullName` and `CreatedAt`. Use `IdentityRole` for `Customer` and `Admin`.
 
-> **Note:** Phase 7 Task 22 (ADR 0005) extends this with a `RefreshTokens` table; Task 23 (ADR 0004) extends with an `Addresses` table. The `Customer` term is canonical for the person who places orders (see `../CONTEXT.md`); `User` is reserved for ASP.NET Core Identity internals.
+> **Note:** Phase 7 Task 25 (ADR 0005) extends this with a `RefreshTokens` table; Task 23 (ADR 0004) extends with an `Addresses` table. The `Customer` term is canonical for the person who places orders (see `../CONTEXT.md`); `User` is reserved for ASP.NET Core Identity internals.
 
 **Acceptance criteria:**
 - [ ] `ApplicationUser : IdentityUser` with `FullName`, `CreatedAt`
@@ -450,7 +454,7 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 ##### Task 4d: IPaymentService interface + MockPaymentService
 **Description:** Define payment strategy and ship a mock implementation that always succeeds after a simulated 200 ms delay and returns a fake transaction ID.
 
-> **Note:** v1 ships `AlwaysSucceed`-only so the failure path in Task 11a is unreached. Phase 7 Task 25 extends the mock with `AlwaysFail` and `FailIfAmountGreaterThan` modes (see `../CONTEXT.md` → Payment) so the 402 path is testable end-to-end.
+> **Note:** v1 ships `AlwaysSucceed`-only so the failure path in Task 11a is unreached. Phase 7 Task 28 extends the mock with `AlwaysFail` and `FailIfAmountGreaterThan` modes (see `../CONTEXT.md` → Payment) so the `400 PAYMENT_FAILED` path is testable end-to-end.
 
 **Acceptance criteria:**
 - [ ] `IPaymentService` interface: `Task<PaymentResult> ChargeAsync(PaymentRequest, CancellationToken)`
@@ -1024,18 +1028,18 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 ##### Task 11a: POST /orders
 **Description:** Creates an order from the current cart. Re-validates stock and prices, charges via `IPaymentService`, deducts stock, clears cart, returns the created order.
 
-> **Note (stock):** Use the atomic SQL UPDATE pattern from ADR 0002 — `UPDATE Products SET Stock = Stock - @qty WHERE Id = @id AND Stock >= @qty` — and gate the response on `rowsAffected`. This replaces the in-memory re-validate-then-deduct loop and fixes the concurrent-checkout race the plan's risk register already names. If payment fails *after* stock was already decremented, the controller must restock the items it deducted before returning 402.
+> **Note (stock, status 2026-07-13):** ADR 0002 calls for the atomic SQL UPDATE (`UPDATE Products SET Stock = Stock - @qty WHERE Id = @id AND Stock >= @qty`, gate on `rowsAffected`). The live code does **not** ship this; it uses the in-memory re-validate-then-deduct loop (`item.Product.Stock -= item.Quantity` before `SaveChanges`). On payment failure the EF context is discarded and the in-memory deduction is rolled back, but the race window is real. The restock-on-failure path returns `400 PAYMENT_FAILED`, not `402`. See `docs/adr/0002-atomic-stock-deduction.md` Status section and the Risk Register row. v2 (Phase 8, ADR 0007) replaces the in-memory loop with reservations and closes the race.
 >
 > **Note (shipping fee):** `ShippingFee` is a single config-driven constant read from `appsettings.json` (`Shipping:Fee`) via `IOptions<ShippingOptions>`. Do not hardcode in the controller. Per-region rates, free-shipping thresholds, tax, and multi-currency are explicitly out of scope (see `../CONTEXT.md` → Money).
 >
-> **Note (variants):** When Task 24 (ADR 0003) lands, the atomic UPDATE targets `ProductVariants`, not `Products`, and `Stock` lives on the Variant.
+> **Note (variants):** When Task 27 (ADR 0003, not "Task 24") lands, the atomic UPDATE targets `ProductVariants`, not `Products`, and `Stock` lives on the Variant. The migration strategy is in ADR 0003 §"Migration strategy".
 
 **Acceptance criteria:**
 - [ ] Request: `CheckoutRequest { ShippingAddress, ShippingFee? }`
 - [ ] Validates cart not empty (400 `EMPTY_CART`)
 - [ ] Re-validates stock for every item (400 `INSUFFICIENT_STOCK` with offending items)
 - [ ] Re-calculates `Subtotal` from current product prices
-- [ ] Calls `IPaymentService.ChargeAsync`; on failure, returns 402 `PAYMENT_FAILED` and does not deduct stock
+- [ ] Calls `IPaymentService.ChargeAsync`; on failure, returns `400 PAYMENT_FAILED` (NOT `402`; see `CONTEXT.md` → Payment → Payment failure) and does not deduct stock
 - [ ] On success: creates `Order` + `OrderItem` rows, deducts `Product.Stock`, clears `Cart`
 - [ ] Response: `OrderDto` (full order with items)
 
@@ -1279,16 +1283,19 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 ---
 
 ##### Task 15b: GET /admin/orders/:id
-**Description:** Admin order detail including user info, items, shipping address, and payment info.
+**Description:** Admin order detail including user info, items, shipping address, and totals. (Payment is intentionally not in v1 — `Order` has no payment columns; see `CONTEXT.md` "Payment provider" and the `OrderStatus.Pending` semantics. The `MockPaymentService` does not store a payment record, so there is nothing to surface here. Revisit when a real provider lands.)
 
 **Acceptance criteria:**
-- [ ] Response: full `AdminOrderDetail` with `User { Email, FullName }`, items, shipping, payment
-- [ ] 404 if not found
+- [ ] Response: full `AdminOrderDetail` with `Customer { Id, Email, FullName }`, items (each with snapshotted name, price, quantity, and **server-computed** subtotal), shipping address, and totals
+- [ ] 404 `ORDER_NOT_FOUND` if not found
+- [ ] 400 `INVALID_STATUS` for unknown status strings on the list filter
+- [ ] 401 without JWT, 403 with a Customer JWT
 - [ ] Requires `Role = Admin`
 
 **Verification:**
 - [ ] Admin can view any order's full detail
 - [ ] Customer info is included
+- [ ] `item.subtotal == item.unitPrice * item.quantity` on every item
 
 **Dependencies:** 15a
 **Files likely touched:** `Controllers/Admin/AdminOrdersController.cs`, `Dtos/Admin/AdminOrderDetail.cs`
@@ -1446,69 +1453,22 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 
 ### Phase 6: Testing & Polish
 
-#### Task 18: Backend Testing
+> **Pointer.** The Phase 6 task breakdown is maintained in `tasks/todo.md` under the **Phase 6** heading (Tasks 18–23: Backend Testing, Frontend Testing, Testing docs & CI, Documentation, Docker production build, Dependency upgrades). The 18a/18b/18c/19a/19b/19c/20a/20b/20c sub-tasks listed below are **historical** and have been re-shaped to match the in-memory test strategy and the live test directories; the live, actionable checklist is in `todo.md`. Do not edit the historical block — edit `todo.md` and re-sync this pointer if the shape changes.
 
-##### Task 18a: Test infrastructure
-**Description:** Set up xUnit + Moq + FluentAssertions + a test base class that uses Testcontainers for PostgreSQL.
+#### Historical Phase 6 sub-tasks (superseded)
 
-**Acceptance criteria:**
-- [ ] `tests/MiniEcommerce.Api.Tests/` xUnit project
-- [ ] `Testcontainers.PostgreSql` for ephemeral DB per test class
-- [ ] `WebApplicationFactory<Program>` for integration tests with a test JWT signing key
-- [ ] Test base class applies migrations and seeds a known dataset
-- [ ] `dotnet test` runs all tests
+##### Task 18a: Test infrastructure (historical — see todo.md 18a)
+Original intent: xUnit + Moq + FluentAssertions + Testcontainers for PostgreSQL. **Superseded** by the InMemory decision (see `docs/testing.md` §6). Live implementation: `backend/MiniEcommerce.Api.Tests/Infrastructure/ApiFactory.cs` uses EF Core InMemory with a `[ModuleInitializer]`-set `Jwt__Key` and provider-stripping pattern. **Status:** ✅ Shipped.
 
-**Verification:**
-- [ ] `dotnet test` returns 0 with at least the smoke test
-- [ ] Tests run in CI without external services (uses Testcontainers)
+##### Task 18b: Backend unit + integration tests (historical — see todo.md 18b–18f)
+Original split into "unit tests for services" and "integration tests for controllers". **Reshaped** in `todo.md` into 18b (xUnit scaffold) → 18c (`WebApplicationFactory` + InMemory) → 18d (`Repository<T>` tests) → 18e (`ExceptionMiddleware` tests) → 18f (`AuthController` tests). Live count: **126 backend tests** (~17 s) — see `memories/repo/mini-ecommerce-tests.md`.
 
-**Dependencies:** 4b
-**Files likely touched:** `tests/MiniEcommerce.Api.Tests/MiniEcommerce.Api.Tests.csproj`, `tests/TestBase.cs`, `tests/IntegrationTestBase.cs`
-**Estimated scope:** M
+##### Task 19: Documentation (historical — see todo.md Task 21)
+Original sub-tasks (README, Swagger annotations, VPS deploy) all moved to **`todo.md` Task 21** as 21a/21b/21c. **Status:** 🟡 In progress (21a mostly shipped; 21b/21c pending).
 
 ---
 
-##### Task 18b: Unit tests for services
-**Description:** Unit tests for `AuthService`, `CartService`, `OrderService`, `ProductService` with mocked repositories.
 
-**Acceptance criteria:**
-- [ ] At least 3 tests per service covering happy path + 2 edge cases
-- [ ] Uses Moq for `IRepository<T>` and `UserManager<ApplicationUser>`
-- [ ] Asserts on service return values and side effects (calls to mocks)
-
-**Verification:**
-- [ ] `dotnet test --filter Category=Unit` returns 0
-- [ ] Coverage report shows services > 70% covered
-
-**Dependencies:** 18a
-**Files likely touched:** `tests/Services/AuthServiceTests.cs`, `tests/Services/CartServiceTests.cs`, `tests/Services/OrderServiceTests.cs`, `tests/Services/ProductServiceTests.cs`
-**Estimated scope:** M
-
----
-
-##### Task 18c: Integration tests for controllers
-**Description:** Integration tests for `AuthController`, `ProductsController`, `CartController`, `OrdersController` (happy paths + auth checks).
-
-**Acceptance criteria:**
-- [ ] Auth: register, login, `/auth/me` with valid/invalid token
-- [ ] Products: list, detail, 404
-- [ ] Cart: add/update/remove/clear; rejects anonymous
-- [ ] Orders: create from cart, list, detail, ownership enforced
-- [ ] All use `WebApplicationFactory` and a real (Testcontainer) DB
-
-**Verification:**
-- [ ] `dotnet test --filter Category=Integration` returns 0
-- [ ] Tests are independent (no shared state between tests)
-
-**Dependencies:** 18a
-**Files likely touched:** `tests/Controllers/AuthControllerTests.cs`, `tests/Controllers/ProductsControllerTests.cs`, `tests/Controllers/CartControllerTests.cs`, `tests/Controllers/OrdersControllerTests.cs`
-**Estimated scope:** M
-
----
-
-#### Task 19: Documentation
-
-##### Task 19a: README + setup instructions
 **Description:** Top-level `README.md` with project overview, architecture, prerequisites, and step-by-step setup.
 
 **Acceptance criteria:**
@@ -1564,7 +1524,8 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 
 ---
 
-#### Task 20: Docker Production Build
+#### Task 20: Docker Production Build (historical — see todo.md Task 22)
+Original sub-tasks 20a/20b/20c all moved to **`todo.md` Task 22** as 22a/22b/22c. **Status:** 🟡 In progress (22a shipped; 22b/22c pending).
 
 ##### Task 20a: Multi-stage Dockerfile for API
 **Description:** Production Dockerfile that builds and publishes a self-contained API image.
@@ -1639,11 +1600,11 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | ASP.NET Core Identity + EF Core + PostgreSQL configuration | High | Test early in 3a with docker-compose, verify connection string |
-| JWT auth between SPA and API (CORS, token refresh) | Medium | Configure CORS in 1d, store token in Zustand + localStorage; silent refresh via httpOnly cookie lands in Phase 7 Task 22 (ADR 0005) |
+| JWT auth between SPA and API (CORS, token refresh) | Medium | Configure CORS in 1d, store token in Zustand + localStorage; silent refresh via httpOnly cookie lands in Phase 7 Task 25 (ADR 0005) |
 | Image upload handling (local path, serving) | Medium | Use `IImageStorage` interface (4c), serve via static files middleware |
 | shadcn/ui + Tailwind config conflicts | Low | Follow shadcn init guide carefully in 2b |
 | Front-end state complexity (cart + auth) | Medium | Use Zustand for client state (auth), TanStack Query for server state (cart, products, orders) |
-| Stock race conditions during checkout | ~~Medium~~ → **Resolved (ADR 0002)** | ~~Wrap stock validation + deduction in a DB transaction (11a)~~ → Replaced by atomic SQL UPDATE: `UPDATE Products SET Stock = Stock - @qty WHERE Id = @id AND Stock >= @qty`; gate on `rowsAffected`. See `docs/adr/0002-atomic-stock-deduction.md` and Task 11a note. |
+| Stock race conditions during checkout | Medium → **Open risk in v1**; targeted by ADR 0002 (NOT shipped) and supersedes by ADR 0007 in v2 | v1 ships with the in-memory re-validate-then-deduct loop (`item.Product.Stock -= qty` in `OrdersController.Checkout` before `SaveChanges`). The race is real but bounded by (a) single-Postgres-instance deployment, (b) the in-memory check before `SaveChanges`, (c) the lack of a concurrent-checkout integration test. **Plan Task 21 / todo Task 24 was wrongly marked ✅ Shipped 2026-07-13 in an earlier grilling pass — rolled back 2026-07-13.** The atomic SQL UPDATE pattern is in ADR 0002 but not implemented. v2 (Phase 8, ADR 0007) replaces the in-memory loop with reservations, which closes the race. |
 | Hard-delete of products in use | Medium | Block hard delete when referenced (13b) |
 | Test flakiness with shared DB | Medium | Testcontainers per test class in 18a |
 
@@ -1655,7 +1616,7 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 - [x] Docker/VPS -> docker-compose for dev and prod ✅
 - [x] UI Library -> Tailwind CSS + shadcn/ui ✅
 - [x] Email -> Out of scope, architecture allows later addition ✅
-- [x] Token refresh strategy -> **Silent refresh via httpOnly cookie**; see `docs/adr/0005-token-refresh.md` and Phase 7 Task 22 ✅
+- [x] Token refresh strategy -> **Silent refresh via httpOnly cookie**; see `docs/adr/0005-token-refresh.md` and Phase 7 Task 25 ✅
 - [x] Image CDN signing for production -> **Defer to production**; `IImageStorage` is the swap point, no work needed in v1 ✅
 - [ ] Tax / multi-currency / discount -> explicitly out of scope for v1 (see `../CONTEXT.md` → Money)
 - [ ] Returns / refunds -> out of scope; mock payment has no refund path (real provider lands out of v1)
@@ -1666,14 +1627,22 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 
 These tasks implement the deferred ADRs from the domain-modeling session. Each sub-task is S or M sized so a single agent can implement, test, and verify in a focused session. The ADR for each task is the source of truth; this section only re-states scope, sizing, and acceptance shape.
 
-#### Task 21: Apply atomic stock deduction (ADR 0002)
+> **Status legend (as of 2026-07-13):** ✅ Shipped — code lives in `backend/MiniEcommerce.Api/`; 🟡 In progress; ⚪ Not started.
+> Live in `todo.md` these are **Tasks 24–28** (the historical 21–25 numbering is preserved here for the ADRs that cite it).
+
+#### Task 21: Apply atomic stock deduction (ADR 0002) — ⚪ Not started (rolled back 2026-07-13)
 Update `OrdersController.Checkout` to use the atomic SQL UPDATE pattern and add the restock-on-payment-fail path. Replaces the in-memory re-validate-then-deduct loop in Task 11a.
 
+**Status:** The 2026-07-13 grilling caught that this task was marked ✅ Shipped in an earlier pass without verifying the code. `OrdersController.Checkout` still uses the in-memory loop (`item.Product.Stock -= item.Quantity` before `SaveChanges`). No `ExecuteSqlInterpolatedAsync` / `ExecuteSqlRaw` exists in the codebase. ADR 0002 is the target, not the implementation. See `docs/adr/0002-atomic-stock-deduction.md` Status section and the Risk Register row.
+
 **Sub-tasks:**
-- **21a** — Add `ExecuteSqlInterpolatedAsync` per cart item; check `rowsAffected`; return 400 `INSUFFICIENT_STOCK` on 0. (S)
-- **21b** — Add the restock loop: if `IPaymentService.ChargeAsync` returns `Success = false`, atomic-UPDATE each cart item back to the original quantity before returning 402. (S)
-- **21c** — Remove the now-redundant in-memory re-validate-then-deduct in Task 11a. (S)
-- **21d** — Tests: (a) happy path; (b) two concurrent checkouts for the last unit — exactly one succeeds; (c) payment fail mid-checkout — stock fully restored. (M)
+- **21a** — Add `ExecuteSqlInterpolatedAsync` per cart item; check `rowsAffected`; return 400 `INSUFFICIENT_STOCK` on 0. (S) ⚪
+- **21b** — Add the restock loop: if `IPaymentService.ChargeAsync` returns `Success = false`, atomic-UPDATE each cart item back to the original quantity before returning `400 PAYMENT_FAILED`. (S) ⚪
+- **21c** — Remove the now-redundant in-memory re-validate-then-deduct in Task 11a. (S) ⚪
+- **21d** — Tests: (a) happy path; (b) two concurrent checkouts for the last unit — exactly one succeeds; (c) payment fail mid-checkout — stock fully restored. (M) ⚪
+
+**Dependencies:** 11a, ADR 0002
+**Files likely touched:** `Controllers/OrdersController.cs`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
 
 **Dependencies:** 11a, ADR 0002
 **Files likely touched:** `Controllers/OrdersController.cs`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
@@ -1725,13 +1694,13 @@ A Customer has 0..n `Address` rows with one `IsDefault`. At checkout the custome
 
 ---
 
-#### Task 25: Add payment mock failure modes (CONTEXT.md → Payment)
-Extend `MockPaymentService` with `AlwaysSucceed` (default) | `AlwaysFail` | `FailIfAmountGreaterThan(threshold)` so the 402 path in Task 11a is testable end-to-end. Mode is bound from `appsettings.json` (`Payment:Mock:Mode`).
+#### Task 25: Add payment mock failure modes (CONTEXT.md → Payment) — ✅ Shipped
+Extend `MockPaymentService` with `AlwaysSucceed` (default) | `AlwaysFail` | `FailIfAmountGreaterThan(threshold)` so the `400 PAYMENT_FAILED` path in Task 11a is testable end-to-end. Mode is bound from `appsettings.json` (`Payment:Mock:Mode`).
 
 **Sub-tasks:**
-- **25a** — Add `Mode` enum + `FailIfAmountGreaterThan` threshold. (S)
-- **25b** — Bind mode from `appsettings.json` via `IOptions<PaymentMockOptions>`. (S)
-- **25c** — Tests: `OrdersController` returns 402 `PAYMENT_FAILED` for `AlwaysFail`; restock loop runs (per Task 21b). (M)
+- **25a** — Add `Mode` enum + `FailIfAmountGreaterThan` threshold. (S) ✅
+- **25b** — Bind mode from `appsettings.json` via `IOptions<PaymentMockOptions>`. (S) ✅ (lives in `backend/MiniEcommerce.Api/Services/MockPaymentService.cs` + `MockPaymentOptions.cs`)
+- **25c** — Tests: `OrdersController` returns `400 PAYMENT_FAILED` for `AlwaysFail`; restock loop runs (per Task 21b when 21b lands). (M) ✅ (covered in `Unit/Services/MockPaymentServiceTests.cs` and `Integration/Controllers/OrdersControllerTests.cs`)
 
 **Dependencies:** 4d, 21b
 **Files likely touched:** `Services/MockPaymentService.cs`, `Dtos/Payment/PaymentMockOptions.cs`, `backend/MiniEcommerce.Api.Tests/Unit/Services/MockPaymentServiceTests.cs`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
@@ -1739,11 +1708,11 @@ Extend `MockPaymentService` with `AlwaysSucceed` (default) | `AlwaysFail` | `Fai
 ---
 
 #### Checkpoint: Domain Refinements
-- [ ] Concurrent checkouts for the last unit — exactly one succeeds (Task 21)
-- [ ] Refresh rotation works; concurrent refresh limited to one active token per customer (Task 22)
-- [ ] Customer can save, edit, delete addresses; checkout uses the address book (Task 23)
-- [ ] Product variants render in catalog; cart + checkout reference variants; stock is per-variant (Task 24)
-- [ ] Payment failure mode triggers 402 + stock restore; failure path is covered by integration test (Task 25)
+- [ ] ~~Concurrent checkouts for the last unit — exactly one succeeds (Task 21)~~ ⚪ Not started (rolled back 2026-07-13; see ADR 0002 Status)
+- [ ] Refresh rotation works; concurrent refresh limited to one active token per customer (Task 22 → todo Task 25)
+- [ ] Customer can save, edit, delete addresses; checkout uses the address book (Task 23 → todo Task 26)
+- [ ] Product variants render in catalog; cart + checkout reference variants; stock is per-variant (Task 24 → todo Task 27)
+- [x] ~~Payment failure mode triggers 400 + stock restore; failure path is covered by integration test (Task 25)~~ ✅ Shipped
 - [ ] `docs/adr/*` and `../CONTEXT.md` unchanged after the tasks (ADRs are the source of truth, not the implementation)
 
 ---
@@ -1766,18 +1735,19 @@ A periodic pass to bring runtime and dev dependencies to current versions withou
 
 | Package | Current | Latest | Type | Risk | Action |
 |---|---|---|---|---|---|
-| `SixLabors.ImageSharp` | 3.1.12 | 4.0.x | Runtime / Major | **High** — API rename, license change, requires `LocalImageStorage.cs` rewrite | Task 23a |
-| `Swashbuckle.AspNetCore` | 6.9.0 | 10.2.x | Runtime / Major | Medium — config layer rewritten, may need `Program.cs` swagger setup update | Task 23b |
-| `vite` | 6.4.3 | 8.1.x | Dev / Major | Medium — `defineConfig`/plugin contract changes; `vite-plugin-react` must move to 6 in lockstep | Task 23c |
-| `eslint` | 9.39.4 | 10.6.x | Dev / Major | Low — flat config mostly stable, may need `eslint-plugin-react-hooks` bump | Task 23d |
-| `@types/node` | 22.20.0 | 26.x | Dev / Major | Low — type-only, build-time only | Task 23e |
-| `@vitejs/plugin-react` | 4.7.0 | 6.0.x | Dev / Major | Must move with Vite 8 (23c) | 23c |
+| `SixLabors.ImageSharp` | 3.1.12 | 4.0.x | Runtime / Major | **High** — API rename, license change, requires `LocalImageStorage.cs` rewrite | todo 23a |
+| `Swashbuckle.AspNetCore` | 6.9.0 | 10.2.x | Runtime / Major | Medium — config layer rewritten, may need `Program.cs` swagger setup update | todo 23b |
+| `vite` | 6.4.3 | 8.1.x | Dev / Major | Medium — `defineConfig`/plugin contract changes; `vite-plugin-react` must move to 6 in lockstep | todo 23c |
+| `eslint` | 9.39.4 | 10.6.x | Dev / Major | Low — flat config mostly stable, may need `eslint-plugin-react-hooks` bump | todo 23d |
+| `@types/node` | 22.20.0 | 26.x | Dev / Major | Low — type-only, build-time only | todo 23e |
+| `npm audit` / `dotnet list package --vulnerable` | — | — | Audit | — | todo 23f |
+| `@vitejs/plugin-react` | 4.7.0 | 6.0.x | Dev / Major | Must move with Vite 8 (todo 23c) | todo 23c |
 
 ### Upgrade Order (recommended)
 
-1. **Dev-only first** (23c→23d→23e) — lowest blast radius, validates the upgrade procedure itself.
-2. **Swashbuckle** (23b) — isolated to `Program.cs` swagger setup; easy to revert.
-3. **ImageSharp** (23a) last — the only upgrade that touches product logic. Save for a session with a fresh context and full local image-upload testing.
+1. **Dev-only first** (todo 23c→23d→23e) — lowest blast radius, validates the upgrade procedure itself.
+2. **Swashbuckle** (todo 23b) — isolated to `Program.cs` swagger setup; easy to revert.
+3. **ImageSharp** (todo 23a) last — the only upgrade that touches product logic. Save for a session with a fresh context and full local image-upload testing.
 
 ### Acceptance Criteria for the Strategy Itself
 
@@ -1793,3 +1763,58 @@ A periodic pass to bring runtime and dev dependencies to current versions withou
 - **Monthly** (or before each release): run `npm outdated` and `dotnet list package --outdated` + `--vulnerable`. File one issue per major version bump discovered.
 - **Immediately** (out of band): any `npm audit` / `--vulnerable` finding.
 - **Never** during the last 48 hours before a release freeze.
+
+---
+
+### Phase 8: v2 Rewrite — Event-sourced Orders + Reservation-based Stock (ADR 0006 + 0007)
+
+The 2026-07-13 grilling surfaced a deeper issue: the v1 in-memory stock-deduction loop is not just an unshipped-ADR-0002 problem — it's a symptom of a model that doesn't have first-class concepts for "stock is held" and "order state is an audit trail." v1 ships with this design; v2 re-shapes it.
+
+These tasks implement the v2 rewrite. **They are out of scope for v1 and are not on the v1 critical path.** Each sub-task is L or XL sized (multiple subsystems) so they should be broken into smaller sub-tasks at the start of Phase 8.
+
+> **Status legend (as of 2026-07-13):** ⚪ Not started. v1 ships first; Phase 8 starts only when the team has decided to do v2.
+> Live in `todo.md` these are **Tasks 29–30** (the historical 29–30 numbering is preserved here for the ADRs that cite it).
+
+#### Task 29: Event-sourced orders (ADR 0006) — ⚪ Not started
+
+Replace mutate-in-place `Order.Status` with an append-only `OrderEvents` stream. The `Order` row becomes a projection, rebuilt by replaying events for an `OrderId`. Read-side `OrderItems` stays as a denormalised projection for catalog/UI queries.
+
+**Sub-tasks (break into S/M at the start of Phase 8):**
+- **29a** — Add `OrderEvents` table (`Id, OrderId, EventType, PayloadJson, OccurredAt, ActorId?`) + EF migration. (S)
+- **29b** — Add `EventType` enum: `Created, StockReserved, PaymentConfirmed, PaymentFailed, Shipped, Delivered, Cancelled, Refunded, Abandoned`. The v1 `OrderStatus` enum is replaced by `MAX(OccurredAt) → EventType` mapped to a denormalised `Status` column. (M)
+- **29c** — Refactor `OrdersController.Checkout` to insert a `Created` event carrying the full snapshot (items, shipping, total) in a single transaction. (M)
+- **29d** — Refactor `OrdersController.GetOrders` / `GetOrderById` to read the projection (no change to the public response shape). Add a `?includeEvents=true` flag for admin tooling. (S)
+- **29e** — Add `OrderCancelled` event on admin status flip (Task 15c) and `OrderRefunded` event on refund (future, requires a real payment provider). (M)
+- **29f** — Tests: (a) replay produces identical `Order` row; (b) two events on the same order linearise by `OccurredAt`; (c) the `Status` denormalised column stays consistent with the latest event. (M)
+- **29g** — Update ADR 0006 to record the v1 → v2 migration story. (S)
+
+**Dependencies:** 11a, 15c, ADR 0006
+**Files likely touched:** `Models/OrderEvent.cs`, `Data/ApplicationDbContext.cs`, `Controllers/OrdersController.cs`, `Controllers/AdminOrdersController.cs`, `Services/OrderEventService.cs`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
+
+---
+
+#### Task 30: Reservation-based stock (ADR 0007) — ⚪ Not started
+
+Replace the in-memory `Stock -= qty` with an `OrderReservations` table. Pre-payment flow inserts reservation rows in `Held` state; payment success converts them to `Confirmed` and deducts `ProductVariant.Stock`; payment failure or abandonment releases the reservation.
+
+**Sub-tasks (break into S/M at the start of Phase 8):**
+- **30a** — Add `OrderReservations` table (`Id, OrderId, ProductVariantId, ProductId (v1 fallback), Quantity, Status (Held/Confirmed/Released/Expired), ExpiresAt, CreatedAt`) with index on `(Status, ExpiresAt)`. (S)
+- **30b** — Refactor `OrdersController.Checkout` to: (i) check available stock (`Stock − SUM(Held reservations for this product) ≥ cart qty`); (ii) insert reservations in `Held` state; (iii) call `IPaymentService.ChargeAsync`; (iv) on success, `Confirmed` + deduct `Stock` + emit `PaymentConfirmed` event (ADR 0006 29c); (v) on failure, `Released` + no `Stock` change. (L)
+- **30c** — Add the TTL-sweep background job (`IHostedService`) that scans `OrderReservations` for `Status = Held AND ExpiresAt < UtcNow`, marks them `Expired`, releases the reservation, and emits an `Abandoned` event (ADR 0006 29b). (M)
+- **30d** — Update admin status flip to emit a `Cancelled` event (ADR 0006 29e) which releases any remaining `Held` reservations. (S)
+- **30e** — Tests: (a) happy path; (b) two concurrent checkouts for the last unit — exactly one wins, the other gets `400 INSUFFICIENT_STOCK`; (c) payment failure mid-checkout — reservations released, no `Stock` change; (d) abandonment — TTL sweep releases reservations and emits `Abandoned`. (L)
+- **30f** — Mark ADR 0002 as superseded (it was the v1 stopgap; reservations are the v2 truth). (S)
+
+**Dependencies:** 11a, 15c, 29b (events), ADR 0007
+**Files likely touched:** `Models/OrderReservation.cs`, `Data/ApplicationDbContext.cs`, `Controllers/OrdersController.cs`, `Services/OrderReservationService.cs`, `Services/ReservationSweepService.cs` (background job), `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
+
+---
+
+## Checkpoint: Phase 8 (v2 Rewrite)
+- [ ] Append-only `OrderEvents` stream is the source of truth; `Order` row is a projection (Task 29)
+- [ ] Stock is reserved, not deducted, at checkout (Task 30)
+- [ ] TTL-sweep background job releases unconfirmed reservations after N minutes (Task 30c)
+- [ ] `Abandoned` is a first-class event, not a missing transition (Tasks 29b + 30c)
+- [ ] Concurrent-checkout integration test exists and passes for the last unit (Task 30e)
+- [ ] ADR 0002 is marked superseded; ADR 0006 + 0007 are the canonical answer
+- [ ] `docs/adr/*` and `CONTEXT.md` updated to reflect the v2 model; the v1 model is the historical record, not the source of truth
