@@ -5,6 +5,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using MiniEcommerce.Api.Dtos;
+using MiniEcommerce.Api.Models;
 using MiniEcommerce.Api.Tests.Infrastructure;
 
 namespace MiniEcommerce.Api.Tests.Integration.Controllers;
@@ -405,6 +406,376 @@ public class AdminOrdersControllerTests : IAsyncLifetime
     }
 
     // ═══════════════════════════════════════════════════════════
+    //  PUT /api/admin/orders/{id}/status — Auth gating  (ticket 15c)
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task UpdateStatus_WithoutToken_Returns401()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.PutAsJsonAsync("/api/admin/orders/1/status", new { status = "Cancelled" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_WithCustomerToken_Returns403()
+    {
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "cust-status-403@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PutAsJsonAsync("/api/admin/orders/1/status", new { status = "Cancelled" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  PUT /api/admin/orders/{id}/status — Validation
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task UpdateStatus_MissingStatus_Returns400()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-missing-status@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        var response = await client.PutAsJsonAsync("/api/admin/orders/1/status", new { });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
+        body!.Success.Should().BeFalse();
+        body.Error!.Code.Should().Be("VALIDATION_ERROR");
+    }
+
+    [Fact]
+    public async Task UpdateStatus_InvalidStatus_Returns400()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-invalid-status@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        var response = await client.PutAsJsonAsync("/api/admin/orders/1/status", new { status = "Banana" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
+        body!.Success.Should().BeFalse();
+        body.Error!.Code.Should().Be("VALIDATION_ERROR");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  PUT /api/admin/orders/{id}/status — Not found
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task UpdateStatus_NonExistentOrder_Returns404()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-status-404@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        var response = await client.PutAsJsonAsync("/api/admin/orders/99999/status", new { status = "Cancelled" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
+        body!.Success.Should().BeFalse();
+        body.Error!.Code.Should().Be("ORDER_NOT_FOUND");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  PUT /api/admin/orders/{id}/status — Valid transitions
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task UpdateStatus_PendingToPaid_Succeeds()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-pend-paid@example.com");
+        var orderId = await CreatePendingOrderAsync("pend-paid@example.com");
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Paid" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<AdminOrderDetail>>(Json);
+        body!.Success.Should().BeTrue();
+        body.Data!.Status.Should().Be("Paid");
+    }
+
+    [Fact]
+    public async Task UpdateStatus_PaidToShipped_Succeeds()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-paid-shipped@example.com");
+
+        // Create a paid order via checkout
+        var userToken = await RegisterAndLoginAsync(client, "paid-shipped@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        var orderId = await AddToCartAndCheckout(client);
+
+        // Admin transitions Paid → Shipped
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Shipped" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<AdminOrderDetail>>(Json);
+        body!.Success.Should().BeTrue();
+        body.Data!.Status.Should().Be("Shipped");
+    }
+
+    [Fact]
+    public async Task UpdateStatus_ShippedToDelivered_Succeeds()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-shipped-delivered@example.com");
+
+        // Create a paid order via checkout, then transition to Shipped
+        var userToken = await RegisterAndLoginAsync(client, "shipped-delivered@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        var orderId = await AddToCartAndCheckout(client);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Shipped" });
+
+        // Now transition Shipped → Delivered
+        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Delivered" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<AdminOrderDetail>>(Json);
+        body!.Success.Should().BeTrue();
+        body.Data!.Status.Should().Be("Delivered");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  PUT /api/admin/orders/{id}/status — Invalid transitions
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task UpdateStatus_PendingToDelivered_Returns409()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-pend-del@example.com");
+        var orderId = await CreatePendingOrderAsync("pend-del@example.com");
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Delivered" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
+        body!.Success.Should().BeFalse();
+        body.Error!.Code.Should().Be("INVALID_TRANSITION");
+    }
+
+    [Fact]
+    public async Task UpdateStatus_PaidToPending_Returns409()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-paid-pend@example.com");
+
+        var userToken = await RegisterAndLoginAsync(client, "paid-pend@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        var orderId = await AddToCartAndCheckout(client);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Pending" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
+        body!.Success.Should().BeFalse();
+        body.Error!.Code.Should().Be("INVALID_TRANSITION");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  PUT /api/admin/orders/{id}/status — Terminal state rejects
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task UpdateStatus_DeliveredToCancelled_Returns409Terminal()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-del-term@example.com");
+
+        // Create paid → shipped → delivered
+        var userToken = await RegisterAndLoginAsync(client, "del-term@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        var orderId = await AddToCartAndCheckout(client);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Shipped" });
+        await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Delivered" });
+
+        // Try Delivered → Cancelled (terminal — no transitions allowed)
+        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Cancelled" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
+        body!.Success.Should().BeFalse();
+        body.Error!.Code.Should().Be("ORDER_ALREADY_TERMINAL");
+    }
+
+    [Fact]
+    public async Task UpdateStatus_CancelledToPaid_Returns409Terminal()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-canc-term@example.com");
+
+        // Create paid → cancelled
+        var userToken = await RegisterAndLoginAsync(client, "canc-term@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        var orderId = await AddToCartAndCheckout(client);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Cancelled" });
+
+        // Try Cancelled → Paid (terminal — no transitions allowed)
+        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Paid" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
+        body!.Success.Should().BeFalse();
+        body.Error!.Code.Should().Be("ORDER_ALREADY_TERMINAL");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  PUT /api/admin/orders/{id}/status — Restock on cancel
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task UpdateStatus_PendingToCancelled_Restocks()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-pend-canc@example.com");
+        var orderId = await CreatePendingOrderAsync("pend-canc@example.com", quantity: 2);
+
+        // Capture stock before cancel
+        int productId;
+        int stockBefore;
+        using (var ctx = _factory.CreateDbContext())
+        {
+            var item = await ctx.OrderItems.Include(i => i.Product).FirstAsync(i => i.OrderId == orderId);
+            productId = item.ProductId;
+            stockBefore = item.Product.Stock;
+        }
+
+        // Cancel
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Cancelled" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<AdminOrderDetail>>(Json);
+        body!.Data!.Status.Should().Be("Cancelled");
+
+        // Verify stock was restored
+        using (var ctx = _factory.CreateDbContext())
+        {
+            var product = await ctx.Products.FindAsync(productId);
+            product!.Stock.Should().Be(stockBefore + 2);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateStatus_PaidToCancelled_Restocks()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-paid-canc@example.com");
+
+        // Create paid order
+        var userToken = await RegisterAndLoginAsync(client, "paid-canc@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        var orderId = await AddToCartAndCheckout(client);
+
+        // Capture stock before cancel
+        int productId;
+        int stockBefore;
+        using (var ctx = _factory.CreateDbContext())
+        {
+            var item = await ctx.OrderItems.Include(i => i.Product).FirstAsync(i => i.OrderId == orderId);
+            productId = item.ProductId;
+            stockBefore = item.Product.Stock;
+        }
+
+        // Cancel
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Cancelled" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<AdminOrderDetail>>(Json);
+        body!.Data!.Status.Should().Be("Cancelled");
+
+        // Verify stock restored
+        using (var ctx = _factory.CreateDbContext())
+        {
+            var product = await ctx.Products.FindAsync(productId);
+            var item = await ctx.OrderItems.FirstAsync(i => i.OrderId == orderId);
+            product!.Stock.Should().Be(stockBefore + item.Quantity);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateStatus_ShippedToCancelled_Restocks()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-shipped-canc@example.com");
+
+        // Create paid → shipped
+        var userToken = await RegisterAndLoginAsync(client, "shipped-canc@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        var orderId = await AddToCartAndCheckout(client);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Shipped" });
+
+        // Capture stock before cancel
+        int productId;
+        int stockBefore;
+        using (var ctx = _factory.CreateDbContext())
+        {
+            var item = await ctx.OrderItems.Include(i => i.Product).FirstAsync(i => i.OrderId == orderId);
+            productId = item.ProductId;
+            stockBefore = item.Product.Stock;
+        }
+
+        // Cancel
+        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Cancelled" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<AdminOrderDetail>>(Json);
+        body!.Data!.Status.Should().Be("Cancelled");
+
+        // Verify stock restored
+        using (var ctx = _factory.CreateDbContext())
+        {
+            var product = await ctx.Products.FindAsync(productId);
+            var item = await ctx.OrderItems.FirstAsync(i => i.OrderId == orderId);
+            product!.Stock.Should().Be(stockBefore + item.Quantity);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  PUT /api/admin/orders/{id}/status — After-cancel terminal
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task UpdateStatus_AfterCancelTerminal_Returns409()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-after-canc@example.com");
+
+        // Create paid → cancelled
+        var userToken = await RegisterAndLoginAsync(client, "after-canc@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        var orderId = await AddToCartAndCheckout(client);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Cancelled" });
+
+        // Try another transition on the cancelled order
+        var response = await client.PutAsJsonAsync($"/api/admin/orders/{orderId}/status", new { status = "Paid" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
+        body!.Success.Should().BeFalse();
+        body.Error!.Code.Should().Be("ORDER_ALREADY_TERMINAL");
+    }
+
+    // ═══════════════════════════════════════════════════════════
     //  Helpers
     // ═══════════════════════════════════════════════════════════
 
@@ -486,5 +857,59 @@ public class AdminOrdersControllerTests : IAsyncLifetime
         });
         var body = await login.Content.ReadFromJsonAsync<ApiResponse<AuthResponse>>(Json);
         return body!.Data!.Token;
+    }
+
+    /// <summary>
+    /// Creates an order with <see cref="OrderStatus.Pending"/> directly in the
+    /// database (bypassing the checkout flow, which creates Paid orders).
+    /// Registers the given <paramref name="email"/> as a customer so the FK
+    /// constraint is satisfied, then inserts an Order + OrderItem referencing
+    /// the first seeded product.
+    /// </summary>
+    private async Task<int> CreatePendingOrderAsync(string email, int quantity = 1)
+    {
+        // Register the user via the API so Identity is set up properly
+        var registerClient = _factory.CreateClient();
+        await registerClient.PostAsJsonAsync("/api/auth/register", new RegisterRequest
+        {
+            Email = email,
+            Password = "Password123",
+            FullName = "Pending User"
+        });
+
+        using var ctx = _factory.CreateDbContext();
+        var user = await ctx.Users.FirstAsync(u => u.Email == email);
+        var product = await ctx.Products.OrderBy(p => p.Id).FirstAsync();
+
+        var order = new Order
+        {
+            CustomerId = user.Id,
+            Status = OrderStatus.Pending,
+            Subtotal = product.Price * quantity,
+            ShippingFee = 5.99m,
+            Total = product.Price * quantity + 5.99m,
+            ShippingFullName = "Pending Customer",
+            ShippingStreet = "123 Pending St",
+            ShippingCity = "Pendingville",
+            ShippingPostalCode = "12345",
+            ShippingCountry = "USA",
+            ShippingPhone = "+1-555-0000",
+            CreatedAt = DateTime.UtcNow,
+        };
+        ctx.Orders.Add(order);
+        await ctx.SaveChangesAsync();
+
+        var orderItem = new OrderItem
+        {
+            OrderId = order.Id,
+            ProductId = product.Id,
+            ProductName = product.Name,
+            UnitPrice = product.Price,
+            Quantity = quantity,
+        };
+        ctx.OrderItems.Add(orderItem);
+        await ctx.SaveChangesAsync();
+
+        return order.Id;
     }
 }

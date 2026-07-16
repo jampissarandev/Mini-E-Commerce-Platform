@@ -5,6 +5,7 @@ using MiniEcommerce.Api.Data;
 using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Exceptions;
 using MiniEcommerce.Api.Models;
+using MiniEcommerce.Api.Services;
 
 namespace MiniEcommerce.Api.Controllers;
 
@@ -170,6 +171,110 @@ public class AdminOrdersController : ControllerBase
                 $"Order with id {id} was not found.",
                 code: "ORDER_NOT_FOUND");
         }
+
+        return Ok(ApiResponse<AdminOrderDetail>.Ok(AdminOrderMapping.ToDetail(order)));
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  PUT /api/admin/orders/{id}/status  (ticket 15c)
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Advance an order through its lifecycle state machine.
+    ///
+    /// Allowed transitions (enforced server-side by <see cref="OrderStatusTransitions"/>):
+    ///   Pending  → { Paid, Cancelled }
+    ///   Paid     → { Shipped, Cancelled }
+    ///   Shipped  → { Delivered, Cancelled }
+    ///   Delivered → ∅ (terminal)
+    ///   Cancelled → ∅ (terminal)
+    ///
+    /// Cancelling from any non-terminal state **always** restocks the
+    /// order's items — there is no Pending exemption (see
+    /// <c>docs/adr/0001-cancellation-policy.md</c> for rationale).
+    /// </summary>
+    /// <param name="id">Order ID.</param>
+    /// <param name="request">Request body with the target <c>Status</c> string.</param>
+    /// <param name="cancellationToken"></param>
+    [HttpPut("{id:int}/status")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<AdminOrderDetail>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdateOrderStatus(
+        int id,
+        [FromBody] UpdateOrderStatusRequest request,
+        CancellationToken cancellationToken)
+    {
+        // ── Request validation ──────────────────────────────────────
+        // Manual validation (not [Required] / IValidatableObject) so the
+        // response is consistently an ApiResponse with code VALIDATION_ERROR
+        // through ExceptionMiddleware, rather than the framework's default
+        // ProblemDetails format.
+
+        if (string.IsNullOrWhiteSpace(request.Status))
+        {
+            throw new ValidationException(
+                "Status is required.",
+                code: "VALIDATION_ERROR");
+        }
+
+        if (!Enum.TryParse<OrderStatus>(request.Status, ignoreCase: false, out var requestedStatus))
+        {
+            throw new ValidationException(
+                $"Status '{request.Status}' is not a valid order status. Valid values: {string.Join(", ", Enum.GetNames<OrderStatus>())}.",
+                code: "VALIDATION_ERROR");
+        }
+
+        // ── Load order ─────────────────────────────────────────────
+        var order = await _context.Orders
+            .Include(o => o.Customer)
+            .Include(o => o.Items)
+            .ThenInclude(i => i.Product)
+            .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+
+        if (order is null)
+        {
+            throw new NotFoundException(
+                $"Order with id {id} was not found.",
+                code: "ORDER_NOT_FOUND");
+        }
+
+        // ── State machine enforcement ──────────────────────────────
+        var allowed = OrderStatusTransitions.AllowedNexts(order.Status);
+
+        if (allowed.Count == 0)
+        {
+            throw new BusinessRuleException(
+                "ORDER_ALREADY_TERMINAL",
+                $"Order #{id} is already in a terminal state ({order.Status}). No further transitions are allowed.");
+        }
+
+        if (!allowed.Contains(requestedStatus))
+        {
+            throw new BusinessRuleException(
+                "INVALID_TRANSITION",
+                $"Cannot transition order #{id} from {order.Status} to {requestedStatus}. " +
+                $"Allowed transitions: {string.Join(", ", allowed)}.");
+        }
+
+        // ── Restock on cancel ──────────────────────────────────────
+        // Restock-always — no Pending exemption.
+        // See docs/adr/0001-cancellation-policy.md for rationale:
+        // the live checkout deducts stock in-memory before SaveChanges,
+        // so every (non-terminal) order has stock to restore.
+        if (requestedStatus == OrderStatus.Cancelled)
+        {
+            foreach (var item in order.Items)
+            {
+                item.Product.Stock += item.Quantity;
+            }
+        }
+
+        // ── Apply transition ───────────────────────────────────────
+        order.Status = requestedStatus;
+        await _context.SaveChangesAsync(cancellationToken);
 
         return Ok(ApiResponse<AdminOrderDetail>.Ok(AdminOrderMapping.ToDetail(order)));
     }

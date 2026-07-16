@@ -2,6 +2,18 @@ namespace MiniEcommerce.Api.Dtos;
 
 // ═══════════════════ Request DTOs ═══════════════════
 
+/// <summary>
+/// Request body for <c>PUT /api/admin/orders/{id}/status</c>.
+/// Validation is performed in the controller action rather than via
+/// <c>[Required]</c> or <c>IValidatableObject</c> so that validation
+/// failures are consistently returned as <c>ApiResponse</c> with error
+/// code <c>VALIDATION_ERROR</c> through <c>ExceptionMiddleware</c>.
+/// </summary>
+public record UpdateOrderStatusRequest
+{
+    public string Status { get; init; } = string.Empty;
+}
+
 // ═══════════════════ Response DTOs ═══════════════════
 
 public record AdminOrderListItem
