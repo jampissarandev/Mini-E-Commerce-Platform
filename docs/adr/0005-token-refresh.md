@@ -5,7 +5,7 @@ Access tokens are short-lived JWTs (60-minute default). Refresh tokens are long-
 **Why:** the storefront is a single-page app with no human in the loop during a 60-minute shopping session. Asking the customer to re-enter email + password because the JWT aged out is the single most common auth-related complaint in SPA storefronts. Silent refresh keeps the session alive for as long as the browser is open, and the `httpOnly` cookie path keeps the refresh token out of JS reach (XSS-resistant) without forcing the access token to follow it.
 
 **Considered alternatives:**
-- **60-min access token, re-login on expiry** (the current state) — rejected because it forces the customer back to `/login` mid-checkout, which is a real conversion killer.
+- **60-min access token, re-login on expiry** (the v1 state) — rejected because it forces the customer back to `/login` mid-checkout, which is a real conversion killer.
 - **Long-lived access token, no refresh** — rejected because it gives an XSS-stolen token weeks of validity, and there is no clean way to revoke a JWT.
 - **Silent refresh in JS-readable storage** (e.g. `localStorage`) — rejected because it loses the XSS-resistance benefit of `httpOnly`; a stolen `localStorage` is a stolen token.
 
@@ -17,3 +17,7 @@ Access tokens are short-lived JWTs (60-minute default). Refresh tokens are long-
 - Refresh-token expiry is `appsettings.json` (`Jwt:RefreshExpiresInDays`, default 30). Access-token expiry stays 60 minutes.
 - Logout must clear the cookie even if the access token is still valid, and revoke the active refresh token in the same request.
 - Image storage, payment mock failure modes, and the other deferred items in `CONTEXT.md` are independent of this ADR.
+
+**Cross-tab race (known limitation, 2026-07-13):** If two browser tabs both 401 at the same time, both fire `POST /api/auth/refresh`. The first call wins; the second hits a `RevokedAt` token and is rejected. The losing tab is forced to log out (the access token from the first refresh is not in that tab's localStorage; the user sees `/login` and a brief flash of unauthenticated UI). The 2026-07-13 grilling confirmed this is the chosen behavior — first-wins, second-fails — over server-side coalescing (which adds an in-memory lock) or per-tab frontend coalescing (which only works inside a single tab). Document the race; don't add a fix that creates a new failure mode.
+
+**Status (2026-07-13):** Not started. Phase 7 Task 25. v1 ships with re-login on access-token expiry.

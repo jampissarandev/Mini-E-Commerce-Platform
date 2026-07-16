@@ -5,7 +5,7 @@ A Customer has 0..n `Address` rows. Each Address has `FullName, Street, City, Po
 **Why:** "type your address every time" is the first thing real customers complain about. Even a small storefront with repeat buyers benefits from a saved address. Snapshotting the address onto the Order keeps the historical record stable (matches the snapshot pattern we already use for `OrderItem.ProductName` and `UnitPrice`) and lets us delete addresses without orphaning order history.
 
 **Considered alternatives:**
-- **Flat shipping fields on Order only** (the current state) — rejected for v1 because it forces every repeat customer to retype the address and provides no default-shipping UX.
+- **Flat shipping fields on Order only** (the v1 state) — rejected for v1 because it forces every repeat customer to retype the address and provides no default-shipping UX.
 - **Address per Order only, with a `defaultAddressId` on Customer** — rejected because it conflates the address record with the order, so editing an address mutates all past orders that referenced it.
 - **Snapshot on Order + nullable FK to Address (no address book)** — rejected because it leaves the customer with no UI to manage addresses and no way to set a default.
 
@@ -16,3 +16,5 @@ A Customer has 0..n `Address` rows. Each Address has `FullName, Street, City, Po
 - Checkout form gains a "Save this address" checkbox and a "Use a saved address" picker.
 - Setting `IsDefault = true` on one address must unset it on the others in the same transaction (single default enforced in the service layer, not in the DB constraint, to keep the migration simple).
 - Tax, discount, multi-currency remain explicitly out of scope for v1; when any of those lands, it does *not* require a schema change to `Address`.
+
+**Status (2026-07-13):** Partially shipped. The **snapshot half** is live — the `Order` row already has `ShippingFullName, ShippingStreet, ShippingCity, ShippingPostalCode, ShippingCountry, ShippingPhone` as flat fields, captured at checkout. The **Address book half** (the `Addresses` table + endpoints + UI) is not shipped and lands in Phase 7 Task 26. Plan.md / todo.md Task 26 covers 26a (table + migration), 26b (CRUD endpoints), 26c (`/account/addresses` page), 26d (checkout address picker), 26e (`CheckoutRequest` accepts `addressId` and copies the Address onto the Order).
