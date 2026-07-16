@@ -1268,7 +1268,7 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 **Description:** Admin endpoint to list all orders with filters.
 
 **Acceptance criteria:**
-- [ ] Query: `page`, `pageSize`, `status`, `q` (search by user email or order id), `from`, `to` (date range)
+- [ ] Query: `page`, `pageSize`, `status`, `q` (search by user **email, full name,** or order id), `from`, `to` (date range)
 - [ ] Response: paginated `AdminOrderListItem[]` with user email, status, total, created at
 - [ ] Requires `Role = Admin`
 
@@ -1287,6 +1287,7 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 
 **Acceptance criteria:**
 - [ ] Response: full `AdminOrderDetail` with `Customer { Id, Email, FullName }`, items (each with snapshotted name, price, quantity, and **server-computed** subtotal), shipping address, and totals
+- [ ] Response includes `AllowedNextStatuses: string[]` when the request includes `?include=allowedNexts`; populated by `OrderStatusTransitions.AllowedNexts(order.Status)` so the FE can render the status dropdown without a duplicate state machine
 - [ ] 404 `ORDER_NOT_FOUND` if not found
 - [ ] 400 `INVALID_STATUS` for unknown status strings on the list filter
 - [ ] 401 without JWT, 403 with a Customer JWT
@@ -1296,10 +1297,11 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 - [ ] Admin can view any order's full detail
 - [ ] Customer info is included
 - [ ] `item.subtotal == item.unitPrice * item.quantity` on every item
+- [ ] `?include=allowedNexts` returns the same set as `OrderStatusTransitions.AllowedNexts(order.Status)` for that order
 
 **Dependencies:** 15a
-**Files likely touched:** `Controllers/Admin/AdminOrdersController.cs`, `Dtos/Admin/AdminOrderDetail.cs`
-**Estimated scope:** S
+**Files likely touched:** `Controllers/Admin/AdminOrdersController.cs`, `Dtos/Admin/AdminOrderDetail.cs`, `Controllers/Admin/AdminOrderMapping.cs` (to populate `AllowedNextStatuses`)
+**Estimated scope:** M
 
 ---
 
@@ -1340,6 +1342,7 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 **Verification:**
 - [ ] Filtering by status updates results
 - [ ] Clicking a row opens detail
+- [ ] Date range is exposed as two shadcn `<Popover>` + `<Calendar>` pickers ("From" / "To" + "Clear"), no default range; URL is the source of truth (`?from=&to=`) and matches the 15a contract end-to-end
 
 **Dependencies:** 15a
 **Files likely touched:** `frontend/src/pages/admin/AdminOrders.tsx`
@@ -1351,8 +1354,8 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 **Description:** `/admin/orders/:id` page showing user, items, shipping, payment, and status update controls.
 
 **Acceptance criteria:**
-- [ ] Shows user info, item list with thumbnails, shipping address, payment txn id
-- [ ] Status update dropdown with only valid transitions (computed client-side)
+- [ ] Shows user info, item list with thumbnails (live `Product.Images[0]` by `SortOrder` — v1 has no image-snapshot on `OrderItem`; the glossary's "snapshot is the truth" rule covers `OrderItem.ProductName` and `OrderItem.UnitPrice`, not the catalogue image; see `CONTEXT.md` rule #10), shipping address, **and a mock-status badge derived from `Order.Status` (Paid → "Captured (mock)"; anything else → "Not captured (mock)")** — no payment transaction id is exposed in v1 because `Order` has no payment columns (see ADR notes for 15b) and the `MockPaymentService` does not persist a record
+- [ ] Status update dropdown with only valid transitions (server-provided via `?include=allowedNexts` on the detail endpoint; `OrderStatusTransitions.AllowedNexts` is the single source of truth — the FE just renders the array)
 - [ ] Print-friendly layout (basic `@media print` styles)
 
 **Verification:**
@@ -1370,12 +1373,14 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 
 **Acceptance criteria:**
 - [ ] Component takes `order` and `onUpdated` callback
-- [ ] Calls `PUT /admin/orders/:id/status` and invalidates `['admin-orders']`
+- [ ] Calls `PUT /admin/orders/:id/status`; **optimistically patches the `['admin-order', id]` cache entry via `setQueryData` (updates `Status` and `AllowedNextStatuses` from the server response), invokes the `onUpdated` prop, and invalidates the `['admin-orders']` prefix + the `['admin-order', id]` entry so subsequent navigations re-fetch** — aligns with the optimistic pattern in `cart.ts` (10a)
+- [ ] List query keys: `useAdminOrders(filters) → ['admin-orders', filters]` (per-filter), `useAdminOrder(id) → ['admin-order', id]` (per-id)
 - [ ] Shows loading + error states
 
 **Verification:**
 - [ ] Selecting a new status persists and updates UI
 - [ ] Invalid transitions are not offered as options
+- [ ] Detail page flips `status` + `allowedNextStatuses` without a refetch round-trip on the optimistic patch; a subsequent refetch confirms the server value
 
 **Dependencies:** 15c, 16b
 **Files likely touched:** `frontend/src/components/admin/OrderStatusSelect.tsx`
