@@ -150,4 +150,66 @@ public class AdminOrdersController : ControllerBase
             TotalCount = totalCount
         }));
     }
+
+    // ═══════════════════════════════════════════════════════════
+    //  GET /api/admin/orders/{id}  (ticket 15b)
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Get the full detail of any order — customer identity, items with
+    /// snapshotted names and prices, shipping address, and totals.
+    /// </summary>
+    /// <param name="id">Order ID.</param>
+    /// <param name="cancellationToken"></param>
+    [HttpGet("{id:int}")]
+    [ProducesResponseType(typeof(ApiResponse<AdminOrderDetail>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetOrderById(int id, CancellationToken cancellationToken)
+    {
+        var order = await _context.Orders
+            .Include(o => o.Customer)
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+
+        if (order is null)
+        {
+            return NotFound(ApiResponse.Fail(new ApiError
+            {
+                Code = "ORDER_NOT_FOUND",
+                Message = $"Order with id {id} was not found."
+            }));
+        }
+
+        var dto = new AdminOrderDetail
+        {
+            Id = order.Id,
+            Status = order.Status.ToString(),
+            Subtotal = order.Subtotal,
+            ShippingFee = order.ShippingFee,
+            Total = order.Total,
+            ShippingFullName = order.ShippingFullName,
+            ShippingStreet = order.ShippingStreet,
+            ShippingCity = order.ShippingCity,
+            ShippingPostalCode = order.ShippingPostalCode,
+            ShippingCountry = order.ShippingCountry,
+            ShippingPhone = order.ShippingPhone,
+            CreatedAt = order.CreatedAt,
+            Customer = new AdminOrderCustomer
+            {
+                Id = order.CustomerId,
+                Email = order.Customer.Email ?? string.Empty,
+                FullName = order.Customer.FullName
+            },
+            Items = order.Items.Select(i => new AdminOrderItemDto
+            {
+                Id = i.Id,
+                ProductId = i.ProductId,
+                ProductName = i.ProductName,
+                UnitPrice = i.UnitPrice,
+                Quantity = i.Quantity
+            }).ToList()
+        };
+
+        return Ok(ApiResponse<AdminOrderDetail>.Ok(dto));
+    }
 }

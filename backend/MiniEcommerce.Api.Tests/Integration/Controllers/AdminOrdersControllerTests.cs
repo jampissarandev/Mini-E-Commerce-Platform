@@ -14,9 +14,10 @@ using MiniEcommerce.Api.Tests.Infrastructure;
 namespace MiniEcommerce.Api.Tests.Integration.Controllers;
 
 /// <summary>
-/// End-to-end HTTP tests for <c>AdminOrdersController</c> (ticket 15a).
+/// End-to-end HTTP tests for <c>AdminOrdersController</c> (tickets 15a + 15b).
 /// Tests cover: role gating, cross-customer visibility, status filtering,
-/// date-range filtering, free-text search, pagination meta, and ordering.
+/// date-range filtering, free-text search, pagination meta, ordering,
+/// and order detail with customer info and computed item subtotals.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public class AdminOrdersControllerTests : IAsyncLifetime
@@ -288,6 +289,126 @@ public class AdminOrdersControllerTests : IAsyncLifetime
     }
 
     // ═══════════════════════════════════════════════════════════
+    //  GET /api/admin/orders/{id} — Auth gating
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task GetAdminOrderById_WithoutToken_Returns401()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/admin/orders/1");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task GetAdminOrderById_WithCustomerToken_Returns403()
+    {
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "cust-detail-access@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/admin/orders/1");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  GET /api/admin/orders/{id} — Happy path
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task GetAdminOrderById_WithAdminToken_ReturnsFullDetail()
+    {
+        var client = _factory.CreateClient();
+
+        // Customer places an order
+        var userToken = await RegisterAndLoginAsync(client, "detail-customer@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        var orderId = await AddToCartAndCheckout(client, fullName: "Jane Doe");
+
+        // Admin retrieves the order
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-detail@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        var response = await client.GetAsync($"/api/admin/orders/{orderId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<AdminOrderDetail>>(Json);
+        body.Should().NotBeNull();
+        body!.Success.Should().BeTrue();
+        body.Data.Should().NotBeNull();
+        body.Data!.Id.Should().Be(orderId);
+    }
+
+    [Fact]
+    public async Task GetAdminOrderById_AdminOrderDetail_HasExpectedFields()
+    {
+        var client = _factory.CreateClient();
+
+        // Customer places an order
+        var userToken = await RegisterAndLoginAsync(client, "detail-fields-customer@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        var orderId = await AddToCartAndCheckout(client, fullName: "Jane Doe");
+
+        // Admin retrieves the order
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-detail-fields@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        var response = await client.GetAsync($"/api/admin/orders/{orderId}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<AdminOrderDetail>>(Json);
+        body!.Data!.Should().NotBeNull();
+        var detail = body.Data!;
+
+        // Customer info (FullName comes from ApplicationUser.FullName, set during RegisterAsync)
+        detail.Customer.Should().NotBeNull();
+        detail.Customer!.Email.Should().Be("detail-fields-customer@example.com");
+        detail.Customer.FullName.Should().Be("Test User");
+
+        // Items
+        detail.Items.Should().NotBeEmpty();
+        var item = detail.Items.First();
+        item.ProductName.Should().NotBeEmpty();
+        item.UnitPrice.Should().BeGreaterThan(0);
+        item.Quantity.Should().BeGreaterThan(0);
+        item.Subtotal.Should().Be(item.UnitPrice * item.Quantity);
+
+        // Shipping (comes from the CheckoutRequest)
+        detail.ShippingFullName.Should().Be("Jane Doe");
+        detail.ShippingStreet.Should().Be("123 Test Street");
+        detail.ShippingCity.Should().Be("Testville");
+        detail.ShippingCountry.Should().Be("USA");
+
+        // Totals
+        detail.Subtotal.Should().BeGreaterThan(0);
+        detail.Total.Should().BeGreaterThan(0);
+        detail.Status.Should().NotBeEmpty();
+        detail.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(5));
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  GET /api/admin/orders/{id} — Not found
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task GetAdminOrderById_WhenOrderDoesNotExist_Returns404()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-detail-404@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        var response = await client.GetAsync("/api/admin/orders/99999");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
+        body!.Success.Should().BeFalse();
+        body.Error!.Code.Should().Be("ORDER_NOT_FOUND");
+    }
+
+    // ═══════════════════════════════════════════════════════════
     //  Helpers
     // ═══════════════════════════════════════════════════════════
 
@@ -356,6 +477,10 @@ public class AdminOrdersControllerTests : IAsyncLifetime
         var user = await userManager.FindByEmailAsync(email);
         if (user is not null)
         {
+            // Remove the Customer role assigned by Register, then add Admin.
+            // This ensures GenerateAuthResponseAsync sees "Admin" first and
+            // emits it as the JWT "role" claim.
+            await userManager.RemoveFromRoleAsync(user, "Customer");
             await userManager.AddToRoleAsync(user, "Admin");
         }
 
