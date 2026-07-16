@@ -47,7 +47,7 @@ function renderWithRouter(initialEntries: string[]) {
 
 beforeEach(() => {
   localStorage.clear()
-  useAuthStore.setState({ token: null, user: null })
+  useAuthStore.setState({ token: null, customer: null })
 })
 
 // ─── Token persistence ────────────────────────────────────────────────
@@ -61,7 +61,7 @@ describe('Token persists across reload', () => {
           data: {
             token: 'persist-me-token',
             expiresAt: '2026-12-31T23:59:59Z',
-            user: {
+            customer: {
               id: '1',
               email: 'alice@example.com',
               fullName: 'Alice',
@@ -78,7 +78,7 @@ describe('Token persists across reload', () => {
     // Simulate login
     useAuthStore.getState().login({
       token: 'persist-me-token',
-      user: {
+      customer: {
         id: '1',
         email: 'alice@example.com',
         fullName: 'Alice',
@@ -105,12 +105,12 @@ describe('Token persists across reload', () => {
     const parsed = JSON.parse(raw!)
     useAuthStore.setState({
       token: parsed.state.token,
-      user: parsed.state.user,
+      customer: parsed.state.customer,
     })
 
     // Verify state survived the "reload"
     expect(useAuthStore.getState().token).toBe('persist-me-token')
-    expect(useAuthStore.getState().user?.email).toBe('alice@example.com')
+    expect(useAuthStore.getState().customer?.email).toBe('alice@example.com')
     expect(useAuthStore.getState().isAuthenticated()).toBe(true)
   })
 
@@ -119,7 +119,7 @@ describe('Token persists across reload', () => {
     const persistedState = {
       state: {
         token: 'admin-token',
-        user: {
+        customer: {
           id: '2',
           email: 'admin@example.com',
           fullName: 'Admin User',
@@ -135,7 +135,7 @@ describe('Token persists across reload', () => {
     const parsed = JSON.parse(localStorage.getItem(AUTH_KEY)!)
     useAuthStore.setState({
       token: parsed.state.token,
-      user: parsed.state.user,
+      customer: parsed.state.customer,
     })
 
     expect(useAuthStore.getState().isAdmin()).toBe(true)
@@ -150,7 +150,7 @@ describe('401 from API triggers logout + redirect', () => {
     // Pre-populate auth state as if user is logged in
     useAuthStore.setState({
       token: 'expired-token',
-      user: {
+      customer: {
         id: '1',
         email: 'alice@example.com',
         fullName: 'Alice',
@@ -165,7 +165,7 @@ describe('401 from API triggers logout + redirect', () => {
       JSON.stringify({
         state: {
           token: 'expired-token',
-          user: {
+          customer: {
             id: '1',
             email: 'alice@example.com',
             fullName: 'Alice',
@@ -202,7 +202,7 @@ describe('401 from API triggers logout + redirect', () => {
     // The axios interceptor should have cleared auth state
     await waitFor(() => {
       expect(useAuthStore.getState().token).toBeNull()
-      expect(useAuthStore.getState().user).toBeNull()
+      expect(useAuthStore.getState().customer).toBeNull()
       expect(useAuthStore.getState().isAuthenticated()).toBe(false)
     })
   })
@@ -211,7 +211,7 @@ describe('401 from API triggers logout + redirect', () => {
     // Simulate being on a protected page while logged in
     useAuthStore.setState({
       token: 'expired-token',
-      user: {
+      customer: {
         id: '1',
         email: 'alice@example.com',
         fullName: 'Alice',
@@ -226,7 +226,7 @@ describe('401 from API triggers logout + redirect', () => {
     expect(screen.getByText('Protected Content')).toBeInTheDocument()
 
     // Now simulate a 401 that clears auth — re-render triggers ProtectedRoute redirect
-    useAuthStore.setState({ token: null, user: null })
+    useAuthStore.setState({ token: null, customer: null })
 
     await waitFor(() => {
       expect(screen.getByText('Login Page')).toBeInTheDocument()
