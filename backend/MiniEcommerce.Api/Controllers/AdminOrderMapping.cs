@@ -57,4 +57,21 @@ internal static class AdminOrderMapping
         Quantity = i.Quantity,
         Subtotal = i.UnitPrice * i.Quantity
     };
+
+    /// <summary>
+    /// Case-insensitive substring match on a nullable customer field.
+    /// Returns <c>false</c> when the field is null. Used by the list
+    /// endpoint's free-text <c>q</c> filter to compose an OR over the
+    /// searchable customer fields without duplicating the null-guard
+    /// and lowercasing shape at every call site.
+    /// </summary>
+    /// <param name="value">The customer field to match against (e.g. <c>Email</c>, <c>FullName</c>). May be null.</param>
+    /// <param name="lowerTerm">The search term, already trimmed and lowercased once by the caller.</param>
+    /// <remarks>
+    /// Uses <c>ToLower().Contains(...)</c> to match the convention established
+    /// in <c>AdminProductsController</c> and keep EF Core translation portable
+    /// across the in-memory test provider and Npgsql in production.
+    /// </remarks>
+    public static bool MatchesSearchTerm(string? value, string lowerTerm) =>
+        value != null && value.ToLower().Contains(lowerTerm);
 }

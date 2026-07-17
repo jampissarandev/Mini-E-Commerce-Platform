@@ -118,13 +118,13 @@ public class AdminOrdersController : ControllerBase
             }
             else
             {
-                // Search by customer email or full name (case-insensitive)
+                // Search by customer email or full name (case-insensitive).
+                // `lowerTerm` is hoisted out of the predicate so it's computed
+                // once per request, not once per row.
                 var lowerTerm = term.ToLower();
                 query = query.Where(o =>
-                    (o.Customer.Email != null &&
-                     o.Customer.Email.ToLower().Contains(lowerTerm)) ||
-                    (o.Customer.FullName != null &&
-                     o.Customer.FullName.ToLower().Contains(lowerTerm)));
+                    AdminOrderMapping.MatchesSearchTerm(o.Customer.Email, lowerTerm) ||
+                    AdminOrderMapping.MatchesSearchTerm(o.Customer.FullName, lowerTerm));
             }
         }
 
