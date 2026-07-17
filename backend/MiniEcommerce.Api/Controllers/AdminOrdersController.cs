@@ -39,7 +39,7 @@ public class AdminOrdersController : ControllerBase
     /// <param name="page">Page number (default 1, clamped to >= 1).</param>
     /// <param name="pageSize">Items per page (default 20, clamped to [1, 100]).</param>
     /// <param name="status">Exact match on the OrderStatus enum string (e.g. "Paid").</param>
-    /// <param name="q">Free-text search: matches customer email (case-insensitive) or order id (numeric).</param>
+    /// <param name="q">Free-text search: matches order id (numeric), customer email (case-insensitive), or customer full name (case-insensitive).</param>
     /// <param name="from">ISO-8601 date (inclusive lower bound, UTC midnight).</param>
     /// <param name="to">ISO-8601 date (exclusive upper bound at day level: to=2026-07-13 means before 2026-07-14 00:00 UTC).</param>
     /// <param name="cancellationToken"></param>
@@ -106,7 +106,8 @@ public class AdminOrdersController : ControllerBase
             query = query.Where(o => o.CreatedAt < toDateExclusive.Value);
         }
 
-        // Free-text search: match customer email or order id
+        // Free-text search: match order id (numeric), customer email,
+        // or customer full name — case-insensitive.
         if (!string.IsNullOrWhiteSpace(q))
         {
             var term = q.Trim();
@@ -117,10 +118,13 @@ public class AdminOrdersController : ControllerBase
             }
             else
             {
-                // Search by customer email (case-insensitive)
+                // Search by customer email or full name (case-insensitive)
+                var lowerTerm = term.ToLower();
                 query = query.Where(o =>
-                    o.Customer.Email != null &&
-                    o.Customer.Email.ToLower().Contains(term.ToLower()));
+                    (o.Customer.Email != null &&
+                     o.Customer.Email.ToLower().Contains(lowerTerm)) ||
+                    (o.Customer.FullName != null &&
+                     o.Customer.FullName.ToLower().Contains(lowerTerm)));
             }
         }
 

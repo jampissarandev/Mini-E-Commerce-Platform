@@ -223,6 +223,77 @@ public class AdminOrdersControllerTests : IAsyncLifetime
     }
 
     // ═══════════════════════════════════════════════════════════
+    //  GET /api/admin/orders — Free-text search (customer full name)
+    // ═══════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task GetAdminOrders_SearchByCustomerName_FindsOrder()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-name-search@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        // Place an order — register with a distinct full name that doesn't appear in the email
+        var userToken = await RegisterAndLoginAsync(client, "name-search-user@example.com", fullName: "Alice Wonderberg");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        await AddToCartAndCheckout(client, fullName: "Alice Wonderberg");
+
+        // Search by full name substring
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var response = await client.GetAsync("/api/admin/orders?q=Wonderberg");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<List<AdminOrderListItem>>>(Json);
+        body!.Data!.Should().NotBeEmpty();
+        body.Data!.Should().ContainSingle();
+        body.Data![0].CustomerEmail.Should().Be("name-search-user@example.com");
+    }
+
+    [Fact]
+    public async Task GetAdminOrders_SearchByCustomerName_CaseInsensitive()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-name-ci@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        // Place an order — register with a distinct full name
+        var userToken = await RegisterAndLoginAsync(client, "name-ci-user@example.com", fullName: "Bob Mcintyre");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        await AddToCartAndCheckout(client, fullName: "Bob Mcintyre");
+
+        // Search with different casing — should still match
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var response = await client.GetAsync("/api/admin/orders?q=MCINTYRE");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<List<AdminOrderListItem>>>(Json);
+        body!.Data!.Should().NotBeEmpty();
+        body.Data!.Should().ContainSingle();
+        body.Data![0].CustomerEmail.Should().Be("name-ci-user@example.com");
+    }
+
+    [Fact]
+    public async Task GetAdminOrders_SearchNonMatchingTerm_ReturnsEmpty()
+    {
+        var client = _factory.CreateClient();
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-no-match@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        // Place an order
+        var userToken = await RegisterAndLoginAsync(client, "no-match-user@example.com", fullName: "Charlie Brown");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        await AddToCartAndCheckout(client, fullName: "Charlie Brown");
+
+        // Search for a term that matches neither email nor name
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var response = await client.GetAsync("/api/admin/orders?q=zzznonexistent");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<List<AdminOrderListItem>>>(Json);
+        body!.Data!.Should().BeEmpty();
+    }
+
+    // ═══════════════════════════════════════════════════════════
     //  GET /api/admin/orders — Pagination meta
     // ═══════════════════════════════════════════════════════════
 
@@ -754,13 +825,13 @@ public class AdminOrdersControllerTests : IAsyncLifetime
     /// <summary>
     /// Registers a fresh Customer, logs them in, and returns the JWT.
     /// </summary>
-    private static async Task<string> RegisterAndLoginAsync(HttpClient client, string email)
+    private static async Task<string> RegisterAndLoginAsync(HttpClient client, string email, string fullName = "Test User")
     {
         await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest
         {
             Email = email,
             Password = "Password123",
-            FullName = "Test User"
+            FullName = fullName
         });
         var login = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest
         {
