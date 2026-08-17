@@ -1395,15 +1395,15 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 **Description:** Backend endpoints powering the admin dashboard cards and charts.
 
 **Acceptance criteria:**
-- [ ] `GET /admin/dashboard/summary` returns `{ totalOrders, totalRevenue, totalCustomers, totalProducts, lowStockCount }`
-- [ ] `GET /admin/dashboard/sales?days=30` returns daily sales series `[ { date, total, orderCount } ]`
-- [ ] `GET /admin/dashboard/recent-orders?limit=10` returns latest orders
-- [ ] `GET /admin/dashboard/low-stock?threshold=10` returns products with `Stock <= threshold`
-- [ ] All require `Role = Admin`
+- [x] `GET /admin/dashboard/summary` returns `{ totalOrders, totalRevenue, totalCustomers, totalProducts, lowStockCount }`
+- [x] `GET /admin/dashboard/sales?days=30` returns daily sales series `[ { date, total, orderCount } ]`
+- [x] `GET /admin/dashboard/recent-orders?limit=10` returns latest orders
+- [x] `GET /admin/dashboard/low-stock?threshold=10` returns products with `Stock <= threshold`
+- [x] All require `Role = Admin`
 
 **Verification:**
-- [ ] Numbers match direct DB queries
-- [ ] Sales series has the requested day count
+- [x] Numbers match direct DB queries
+- [x] Sales series has the requested day count
 
 **Dependencies:** 11a, 3b
 **Files likely touched:** `Controllers/Admin/AdminDashboardController.cs`, `Services/DashboardService.cs`, `Dtos/Admin/DashboardSummary.cs`, `Dtos/Admin/SalesPoint.cs`
@@ -1415,13 +1415,13 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 **Description:** `/admin` page (or `/admin/dashboard`) with 4 KPI cards: orders, revenue, customers, low stock count.
 
 **Acceptance criteria:**
-- [ ] 4 cards in a responsive grid
-- [ ] Each card: title, value, optional delta vs previous period
-- [ ] Loading skeleton state
+- [x] 4 cards in a responsive grid
+- [x] Each card: title, value, optional delta vs previous period
+- [x] Loading skeleton state
 
 **Verification:**
-- [ ] Cards display correct values from API
-- [ ] Numbers update on refresh
+- [x] Cards display correct values from API
+- [x] Numbers update on refresh
 
 **Dependencies:** 17a
 **Files likely touched:** `frontend/src/pages/admin/AdminDashboard.tsx`, `frontend/src/components/admin/StatCard.tsx`
@@ -1433,15 +1433,15 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 **Description:** Add a sales line chart for the last 30 days, a recent-orders list, and a low-stock products table.
 
 **Acceptance criteria:**
-- [ ] Sales line chart using Recharts (already in the Vite bundle, lightweight)
-- [ ] Recent orders: 10 rows with status badges linking to detail
-- [ ] Low stock table: product name, stock, "Edit" link
-- [ ] All sections have loading + empty states
+- [x] Sales line chart using Recharts (already in the Vite bundle, lightweight)
+- [x] Recent orders: 10 rows with status badges linking to detail
+- [x] Low stock table: product name, stock, "Edit" link
+- [x] All sections have loading + empty states
 
 **Verification:**
-- [ ] Chart renders with data
-- [ ] Recent orders link to detail page
-- [ ] Low stock list matches API
+- [x] Chart renders with data
+- [x] Recent orders link to detail page
+- [x] Low stock list matches API
 
 **Dependencies:** 17a, 17b
 **Files likely touched:** `frontend/src/components/admin/SalesChart.tsx`, `frontend/src/components/admin/RecentOrdersList.tsx`, `frontend/src/components/admin/LowStockTable.tsx`
@@ -1450,10 +1450,10 @@ Once the foundation (Phase 1) and the API contracts of Phase 2 (auth DTOs, regis
 ---
 
 #### Checkpoint: Admin
-- [ ] Admin can CRUD products, upload images
-- [ ] Admin can list orders, view detail, update status
-- [ ] Cancelling an order restocks items
-- [ ] Dashboard shows summary, sales chart, recent orders, low stock
+- [x] Admin can CRUD products, upload images
+- [x] Admin can list orders, view detail, update status
+- [x] Cancelling an order restocks items
+- [x] Dashboard shows summary, sales chart, recent orders, low stock
 
 ---
 

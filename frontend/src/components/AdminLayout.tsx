@@ -10,6 +10,12 @@ export function AdminLayout() {
           </Link>
           <nav className="flex items-center space-x-4">
             <Link
+              to="/admin"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Dashboard
+            </Link>
+            <Link
               to="/admin/products"
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >

@@ -95,6 +95,43 @@ export const handlers = [
     ),
   ),
 
+  // ─── Admin dashboard endpoints ─────────────────────────────
+  // Default empty-ish data so the AdminDashboard page renders without
+  // per-test setup. Tests override these with server.use(...).
+  http.get(/\/api\/admin\/dashboard\/summary$/, () =>
+    HttpResponse.json({
+      success: true,
+      data: {
+        totalOrders: 0,
+        totalRevenue: 0,
+        totalCustomers: 0,
+        totalProducts: 0,
+        lowStockCount: 0,
+      },
+    }),
+  ),
+
+  http.get(/\/api\/admin\/dashboard\/sales$/, () =>
+    HttpResponse.json({
+      success: true,
+      data: [],
+    }),
+  ),
+
+  http.get(/\/api\/admin\/dashboard\/recent-orders$/, () =>
+    HttpResponse.json({
+      success: true,
+      data: [],
+    }),
+  ),
+
+  http.get(/\/api\/admin\/dashboard\/low-stock$/, () =>
+    HttpResponse.json({
+      success: true,
+      data: [],
+    }),
+  ),
+
   // ─── Admin order endpoints ─────────────────────────────────
   // Default empty list so the AdminOrders page renders without per-test setup.
   http.get(/\/api\/admin\/orders$/, () =>

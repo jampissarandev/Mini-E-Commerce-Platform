@@ -147,16 +147,16 @@
   - [x] 16b: Order detail view
   - [x] 16c: Status update dropdown
 
-- [ ] **Task 17: Admin — Dashboard**
-  - [ ] 17a: Dashboard stats endpoints
-  - [ ] 17b: Dashboard cards UI
-  - [ ] 17c: Charts (sales line + recent orders list + low stock table)
+- [x] **Task 17: Admin — Dashboard**
+  - [x] 17a: Dashboard stats endpoints
+  - [x] 17b: Dashboard cards UI
+  - [x] 17c: Charts (sales line + recent orders list + low stock table)
 
 ## Checkpoint: Admin
-- [ ] Admin can CRUD products, upload images
-- [ ] Admin can list orders, view detail, update status
-- [ ] Cancelling an order restocks items
-- [ ] Dashboard shows summary, sales chart, recent orders, low stock
+- [x] Admin can CRUD products, upload images
+- [x] Admin can list orders, view detail, update status
+- [x] Cancelling an order restocks items
+- [x] Dashboard shows summary, sales chart, recent orders, low stock
 
 ---
 

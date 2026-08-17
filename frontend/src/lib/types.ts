@@ -220,3 +220,25 @@ export interface AdminOrderDetail {
 export interface UpdateOrderStatusRequest {
   status: string
 }
+
+// Admin dashboard types — mirrors backend DashboardSummary / SalesPoint / LowStockProductDto.
+export interface DashboardSummary {
+  totalOrders: number
+  totalRevenue: number
+  totalCustomers: number
+  totalProducts: number
+  lowStockCount: number
+}
+
+export interface SalesPoint {
+  /** ISO-8601 date string (yyyy-MM-dd, UTC). */
+  date: string
+  total: number
+  orderCount: number
+}
+
+export interface LowStockProductDto {
+  id: number
+  name: string
+  stock: number
+}
