@@ -72,10 +72,10 @@
 
 ## Phase 3: Product Catalog (Customer)
 
-- [ ] **Task 7: Product API Endpoints**
+- [x] **Task 7: Product API Endpoints**
   - [x] 7a: GET /products (pagination, filtering, sorting) — verified live 2026-08-17
   - [x] 7b: GET /products/:id — verified live 2026-08-17
-  - [ ] 7c: GET /categories — **MISSING (2026-08-17)**: no public endpoint in backend; frontend `useCategories` calls `/api/categories` (MSW-mocked in tests, so tests pass but prod returns 404). Needs a `CategoriesController` + integration test.
+  - [x] 7c: GET /categories — (2026-08-17) `CategoriesController` + `CategoryDto` + 2 integration tests; fixes prod 404 (was MSW-mocked only, no backend endpoint). Backend 167/167.
 
 - [x] **Task 8: Product Catalog UI**
   - [x] 8a: Product card component + grid
