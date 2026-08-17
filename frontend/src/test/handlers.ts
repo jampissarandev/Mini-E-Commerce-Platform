@@ -64,4 +64,34 @@ export const handlers = [
       data: { mode: 'AlwaysSucceed', failIfAmountGreaterThan: null },
     }),
   ),
+
+  // ─── Admin product endpoints ───────────────────────────────
+  http.get(/\/api\/admin\/products$/, () =>
+    HttpResponse.json({
+      success: true,
+      data: [],
+      meta: { page: 1, pageSize: 10, totalCount: 0, totalPages: 0 },
+    }),
+  ),
+
+  http.post(/\/api\/admin\/products$/, () =>
+    HttpResponse.json(
+      {
+        success: true,
+        data: {
+          id: 99,
+          name: 'New Product',
+          slug: 'new-product',
+          description: 'A new product',
+          price: 19.99,
+          stock: 10,
+          isActive: true,
+          createdAt: '2026-07-04T00:00:00Z',
+          category: { id: 1, name: 'Electronics', slug: 'electronics' },
+          images: [],
+        },
+      },
+      { status: 201 },
+    ),
+  ),
 ]

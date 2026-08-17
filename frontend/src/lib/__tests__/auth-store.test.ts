@@ -6,22 +6,22 @@ beforeEach(() => {
   localStorage.clear()
   useAuthStore.setState({
     token: null,
-    user: null,
+    customer: null,
   })
 })
 
 describe('useAuthStore', () => {
   it('starts logged out', () => {
-    const { token, user } = useAuthStore.getState()
+    const { token, customer } = useAuthStore.getState()
     expect(token).toBeNull()
-    expect(user).toBeNull()
+    expect(customer).toBeNull()
   })
 
   describe('login', () => {
-    it('stores token and user data', () => {
+    it('stores token and customer data', () => {
       useAuthStore.getState().login({
         token: 'test-jwt-token',
-        user: {
+        customer: {
           id: '1',
           email: 'alice@example.com',
           fullName: 'Alice Wonderland',
@@ -30,9 +30,9 @@ describe('useAuthStore', () => {
         },
       })
 
-      const { token, user } = useAuthStore.getState()
+      const { token, customer } = useAuthStore.getState()
       expect(token).toBe('test-jwt-token')
-      expect(user).toEqual({
+      expect(customer).toEqual({
         id: '1',
         email: 'alice@example.com',
         fullName: 'Alice Wonderland',
@@ -41,10 +41,10 @@ describe('useAuthStore', () => {
       })
     })
 
-    it('marks user as authenticated', () => {
+    it('marks customer as authenticated', () => {
       useAuthStore.getState().login({
         token: 'token',
-        user: {
+        customer: {
           id: '1',
           email: 'a@b.com',
           fullName: 'A',
@@ -58,10 +58,10 @@ describe('useAuthStore', () => {
   })
 
   describe('logout', () => {
-    it('clears token and user', () => {
+    it('clears token and customer', () => {
       useAuthStore.getState().login({
         token: 'token',
-        user: {
+        customer: {
           id: '1',
           email: 'a@b.com',
           fullName: 'A',
@@ -71,15 +71,15 @@ describe('useAuthStore', () => {
       })
       useAuthStore.getState().logout()
 
-      const { token, user } = useAuthStore.getState()
+      const { token, customer } = useAuthStore.getState()
       expect(token).toBeNull()
-      expect(user).toBeNull()
+      expect(customer).toBeNull()
     })
 
-    it('marks user as unauthenticated after logout', () => {
+    it('marks customer as unauthenticated after logout', () => {
       useAuthStore.getState().login({
         token: 'token',
-        user: {
+        customer: {
           id: '1',
           email: 'a@b.com',
           fullName: 'A',
@@ -103,7 +103,7 @@ describe('useAuthStore', () => {
     it('returns true for Admin role', () => {
       useAuthStore.getState().login({
         token: 'token',
-        user: {
+        customer: {
           id: '1',
           email: 'admin@example.com',
           fullName: 'Admin',
@@ -117,7 +117,7 @@ describe('useAuthStore', () => {
     it('returns false for Customer role', () => {
       useAuthStore.getState().login({
         token: 'token',
-        user: {
+        customer: {
           id: '1',
           email: 'c@example.com',
           fullName: 'Customer',
@@ -134,10 +134,10 @@ describe('useAuthStore', () => {
   })
 
   describe('persistence', () => {
-    it('persists token and user to localStorage', () => {
+    it('persists token and customer to localStorage', () => {
       useAuthStore.getState().login({
         token: 'persist-token',
-        user: {
+        customer: {
           id: '1',
           email: 'a@b.com',
           fullName: 'A',
@@ -150,7 +150,7 @@ describe('useAuthStore', () => {
       expect(stored).not.toBeNull()
       const parsed = JSON.parse(stored!)
       expect(parsed.state.token).toBe('persist-token')
-      expect(parsed.state.user.email).toBe('a@b.com')
+      expect(parsed.state.customer.email).toBe('a@b.com')
     })
 
     it('hydrates from localStorage on load', () => {
@@ -159,7 +159,7 @@ describe('useAuthStore', () => {
         JSON.stringify({
           state: {
             token: 'hydrated-token',
-            user: {
+            customer: {
               id: '2',
               email: 'hydrated@test.com',
               fullName: 'Hydrated',
@@ -174,7 +174,7 @@ describe('useAuthStore', () => {
       // Re-create the store to trigger hydration
       useAuthStore.setState({
         token: 'hydrated-token',
-        user: {
+        customer: {
           id: '2',
           email: 'hydrated@test.com',
           fullName: 'Hydrated',

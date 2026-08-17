@@ -61,7 +61,7 @@ function renderOrderHistory() {
 beforeEach(() => {
   useAuthStore.setState({
     token: 'test-token',
-    user: { id: '1', email: 'test@example.com', fullName: 'Test User', role: 'Customer', createdAt: '2026-01-01' },
+    customer: { id: '1', email: 'test@example.com', fullName: 'Test User', role: 'Customer', createdAt: '2026-01-01' },
   })
   server.resetHandlers()
   // Default: return populated orders list

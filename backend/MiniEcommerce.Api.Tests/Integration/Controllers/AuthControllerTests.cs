@@ -49,8 +49,8 @@ public class AuthControllerTests : IAsyncLifetime
         body.Should().NotBeNull();
         body!.Success.Should().BeTrue();
         body.Data!.Token.Should().NotBeNullOrEmpty();
-        body.Data.User.Email.Should().Be("alice@example.com");
-        body.Data.User.Role.Should().Be("Customer");
+        body.Data.Customer.Email.Should().Be("alice@example.com");
+        body.Data.Customer.Role.Should().Be("Customer");
         body.Data.ExpiresAt.Should().BeAfter(DateTime.UtcNow);
     }
 
@@ -115,7 +115,7 @@ public class AuthControllerTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<ApiResponse<AuthResponse>>(Json);
         body!.Data!.Token.Should().NotBeNullOrEmpty();
-        body.Data.User.Email.Should().Be("bob@example.com");
+        body.Data.Customer.Email.Should().Be("bob@example.com");
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class AuthControllerTests : IAsyncLifetime
         var response = await client.GetAsync("/api/auth/me");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<ApiResponse<UserDto>>(Json);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<CustomerDto>>(Json);
         body!.Data!.Email.Should().Be("eve@example.com");
         body.Data.Role.Should().Be("Customer");
     }

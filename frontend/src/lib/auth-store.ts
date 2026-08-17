@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export interface User {
+export interface Customer {
   id: string
   email: string
   fullName: string
@@ -11,8 +11,8 @@ export interface User {
 
 export interface AuthState {
   token: string | null
-  user: User | null
-  login: (data: { token: string; user: User }) => void
+  customer: Customer | null
+  login: (data: { token: string; customer: Customer }) => void
   logout: () => void
   isAuthenticated: () => boolean
   isAdmin: () => boolean
@@ -22,19 +22,19 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       token: null,
-      user: null,
+      customer: null,
 
-      login: (data) => set({ token: data.token, user: data.user }),
+      login: (data) => set({ token: data.token, customer: data.customer }),
 
-      logout: () => set({ token: null, user: null }),
+      logout: () => set({ token: null, customer: null }),
 
-      isAuthenticated: () => get().token !== null && get().user !== null,
+      isAuthenticated: () => get().token !== null && get().customer !== null,
 
-      isAdmin: () => get().user?.role === 'Admin',
+      isAdmin: () => get().customer?.role === 'Admin',
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ token: state.token, user: state.user }),
+      partialize: (state) => ({ token: state.token, customer: state.customer }),
     },
   ),
 )

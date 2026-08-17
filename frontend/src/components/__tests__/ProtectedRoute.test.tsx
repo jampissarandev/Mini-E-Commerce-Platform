@@ -36,7 +36,7 @@ function renderWithRouter(
 
 beforeEach(() => {
   localStorage.clear()
-  useAuthStore.setState({ token: null, user: null })
+  useAuthStore.setState({ token: null, customer: null })
 })
 
 describe('ProtectedRoute', () => {
@@ -48,7 +48,7 @@ describe('ProtectedRoute', () => {
   it('renders children when authenticated', () => {
     useAuthStore.getState().login({
       token: 'test-token',
-      user: {
+      customer: {
         id: '1',
         email: 'a@b.com',
         fullName: 'A',
@@ -64,7 +64,7 @@ describe('ProtectedRoute', () => {
   it('redirects to /login when authenticated but wrong role', () => {
     useAuthStore.getState().login({
       token: 'test-token',
-      user: {
+      customer: {
         id: '1',
         email: 'a@b.com',
         fullName: 'A',
@@ -80,7 +80,7 @@ describe('ProtectedRoute', () => {
   it('renders children when authenticated with correct role', () => {
     useAuthStore.getState().login({
       token: 'test-token',
-      user: {
+      customer: {
         id: '1',
         email: 'admin@b.com',
         fullName: 'Admin',

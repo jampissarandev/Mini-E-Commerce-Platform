@@ -1,6 +1,6 @@
 # Test Strategy & Specification
 
-> Defines **how** we test, **what** we test, and the **workflow** we follow. Implementation is broken down in `tasks/todo.md` under Task 21.
+> Defines **how** we test, **what** we test, and the **workflow** we follow. Implementation is broken down in `tasks/todo.md` under **Task 18** (Backend Testing) and **Task 19** (Frontend Testing).
 
 ---
 

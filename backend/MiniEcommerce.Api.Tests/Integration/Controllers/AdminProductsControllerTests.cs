@@ -587,7 +587,7 @@ public class AdminProductsControllerTests : IAsyncLifetime
             await userManager.CreateAsync(user, "Password123!");
             await userManager.AddToRoleAsync(user, "Customer");
 
-            var cart = new Cart { UserId = user.Id };
+            var cart = new Cart { CustomerId = user.Id };
             ctx.Carts.Add(cart);
             await ctx.SaveChangesAsync();
 

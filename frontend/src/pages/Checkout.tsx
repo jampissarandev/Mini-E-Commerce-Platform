@@ -35,7 +35,7 @@ export function Checkout() {
   const { data: paymentModeData } = usePaymentMode()
   const checkout = useCheckout()
   const navigate = useNavigate()
-  const fullName = useAuthStore((s) => s.user?.fullName ?? '')
+  const fullName = useAuthStore((s) => s.customer?.fullName ?? '')
 
   const paymentMode = paymentModeData?.data
   const showPaymentWarning =

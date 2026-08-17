@@ -29,8 +29,8 @@ public class CartController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<CartDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetCart(CancellationToken cancellationToken = default)
     {
-        var userId = _userManager.GetUserId(User)!;
-        var cart = await GetOrCreateCartAsync(userId, cancellationToken);
+        var customerId = _userManager.GetUserId(User)!;
+        var cart = await GetOrCreateCartAsync(customerId, cancellationToken);
 
         var dto = await MapCartToDtoAsync(cart, cancellationToken);
         return Ok(ApiResponse<CartDto>.Ok(dto));
@@ -48,8 +48,8 @@ public class CartController : ControllerBase
         [FromBody] AddCartItemRequest request,
         CancellationToken cancellationToken = default)
     {
-        var userId = _userManager.GetUserId(User)!;
-        var cart = await GetOrCreateCartAsync(userId, cancellationToken);
+        var customerId = _userManager.GetUserId(User)!;
+        var cart = await GetOrCreateCartAsync(customerId, cancellationToken);
 
         // Validate product exists
         var product = await _context.Products
@@ -136,8 +136,8 @@ public class CartController : ControllerBase
         [FromBody] UpdateCartItemRequest request,
         CancellationToken cancellationToken = default)
     {
-        var userId = _userManager.GetUserId(User)!;
-        var cart = await GetOrCreateCartAsync(userId, cancellationToken);
+        var customerId = _userManager.GetUserId(User)!;
+        var cart = await GetOrCreateCartAsync(customerId, cancellationToken);
 
         var cartItem = await _context.CartItems
             .Include(ci => ci.Product)
@@ -180,8 +180,8 @@ public class CartController : ControllerBase
         int id,
         CancellationToken cancellationToken = default)
     {
-        var userId = _userManager.GetUserId(User)!;
-        var cart = await GetOrCreateCartAsync(userId, cancellationToken);
+        var customerId = _userManager.GetUserId(User)!;
+        var cart = await GetOrCreateCartAsync(customerId, cancellationToken);
 
         var cartItem = await _context.CartItems
             .FirstOrDefaultAsync(ci => ci.Id == id && ci.CartId == cart.Id, cancellationToken);
@@ -209,8 +209,8 @@ public class CartController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> ClearCart(CancellationToken cancellationToken = default)
     {
-        var userId = _userManager.GetUserId(User)!;
-        var cart = await GetOrCreateCartAsync(userId, cancellationToken);
+        var customerId = _userManager.GetUserId(User)!;
+        var cart = await GetOrCreateCartAsync(customerId, cancellationToken);
 
         var items = await _context.CartItems
             .Where(ci => ci.CartId == cart.Id)
@@ -228,16 +228,16 @@ public class CartController : ControllerBase
 
     // ─────────────── Private helpers ───────────────
 
-    private async Task<Cart> GetOrCreateCartAsync(string userId, CancellationToken cancellationToken)
+    private async Task<Cart> GetOrCreateCartAsync(string customerId, CancellationToken cancellationToken)
     {
         var cart = await _context.Carts
-            .FirstOrDefaultAsync(c => c.UserId == userId, cancellationToken);
+            .FirstOrDefaultAsync(c => c.CustomerId == customerId, cancellationToken);
 
         if (cart is null)
         {
             cart = new Cart
             {
-                UserId = userId,
+                CustomerId = customerId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };

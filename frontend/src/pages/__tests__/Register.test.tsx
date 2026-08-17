@@ -24,7 +24,7 @@ function renderRegister() {
 
 beforeEach(() => {
   localStorage.clear()
-  useAuthStore.setState({ token: null, user: null })
+  useAuthStore.setState({ token: null, customer: null })
 })
 
 describe('Register page', () => {
@@ -90,7 +90,7 @@ describe('Register page', () => {
             data: {
               token: 'new-jwt-token',
               expiresAt: '2026-12-31T23:59:59Z',
-              user: {
+              customer: {
                 id: '2',
                 email: 'alice@example.com',
                 fullName: 'Alice Wonderland',
@@ -115,7 +115,7 @@ describe('Register page', () => {
     await waitFor(() => {
       const state = useAuthStore.getState()
       expect(state.token).toBe('new-jwt-token')
-      expect(state.user?.email).toBe('alice@example.com')
+      expect(state.customer?.email).toBe('alice@example.com')
     })
   })
 

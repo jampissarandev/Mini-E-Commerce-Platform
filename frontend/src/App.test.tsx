@@ -25,7 +25,7 @@ function renderAt(path: string) {
 
 beforeEach(() => {
   localStorage.clear()
-  useAuthStore.setState({ token: null, user: null })
+  useAuthStore.setState({ token: null, customer: null })
 })
 
 describe('App', () => {

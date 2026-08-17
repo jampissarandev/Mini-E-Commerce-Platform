@@ -15,8 +15,8 @@ public class Order
     public string ShippingPhone { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public string UserId { get; set; } = string.Empty;
-    public ApplicationUser User { get; set; } = null!;
+    public string CustomerId { get; set; } = string.Empty;
+    public ApplicationUser Customer { get; set; } = null!;
 
     public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
 }

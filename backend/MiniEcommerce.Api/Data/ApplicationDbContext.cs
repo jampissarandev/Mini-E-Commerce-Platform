@@ -56,10 +56,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         // Cart
         builder.Entity<Cart>(e =>
         {
-            e.HasIndex(c => c.UserId).IsUnique();
-            e.HasOne(c => c.User)
+            e.HasIndex(c => c.CustomerId).IsUnique();
+            e.HasOne(c => c.Customer)
                 .WithMany()
-                .HasForeignKey(c => c.UserId)
+                .HasForeignKey(c => c.CustomerId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -81,9 +81,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         // Order
         builder.Entity<Order>(e =>
         {
-            e.HasOne(o => o.User)
+            e.HasOne(o => o.Customer)
                 .WithMany()
-                .HasForeignKey(o => o.UserId)
+                .HasForeignKey(o => o.CustomerId)
                 .OnDelete(DeleteBehavior.Cascade);
             e.Property(o => o.Subtotal).HasPrecision(18, 2);
             e.Property(o => o.ShippingFee).HasPrecision(18, 2);

@@ -42,11 +42,11 @@ public class ExceptionMiddleware
         {
             Exceptions.NotFoundException ex =>
                 (HttpStatusCode.NotFound,
-                 new ApiError { Code = "NOT_FOUND", Message = ex.Message }),
+                 new ApiError { Code = ex.Code, Message = ex.Message }),
 
             Exceptions.ValidationException ex =>
                 (HttpStatusCode.BadRequest,
-                 new ApiError { Code = "VALIDATION_ERROR", Message = ex.Message, Details = ex.Errors }),
+                 new ApiError { Code = ex.Code, Message = ex.Message, Details = ex.Errors }),
 
             Exceptions.BusinessRuleException ex =>
                 (HttpStatusCode.Conflict,

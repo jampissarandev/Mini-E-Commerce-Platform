@@ -88,7 +88,7 @@ function fillShippingForm() {
 beforeEach(() => {
   useAuthStore.setState({
     token: 'test-token',
-    user: { id: '1', email: 'test@example.com', fullName: 'Test User', role: 'Customer', createdAt: '2026-01-01' },
+    customer: { id: '1', email: 'test@example.com', fullName: 'Test User', role: 'Customer', createdAt: '2026-01-01' },
   })
   server.resetHandlers()
   // Set up non-empty cart for all tests by default
@@ -131,7 +131,7 @@ describe('Checkout page', () => {
 
   it('validates all required fields when form is empty', async () => {
     // Logout so fullName is not pre-filled.
-    useAuthStore.setState({ token: null, user: null })
+    useAuthStore.setState({ token: null, customer: null })
 
     renderCheckout()
     await screen.findByText('Laptop Pro')
