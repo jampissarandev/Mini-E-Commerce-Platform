@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,14 +10,23 @@ namespace MiniEcommerce.Api.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Carts
             migrationBuilder.DropForeignKey(
                 name: "FK_Carts_AspNetUsers_UserId",
                 table: "Carts");
 
-            migrationBuilder.DropIndex(
-                name: "IX_Carts_UserId",
-                table: "Carts");
+            migrationBuilder.DropForeignKey(
+                name: "FK_Orders_AspNetUsers_UserId",
+                table: "Orders");
+
+            migrationBuilder.RenameColumn(
+                name: "UserId",
+                table: "Orders",
+                newName: "CustomerId");
+
+            migrationBuilder.RenameIndex(
+                name: "IX_Orders_UserId",
+                table: "Orders",
+                newName: "IX_Orders_CustomerId");
 
             migrationBuilder.RenameColumn(
                 name: "UserId",
@@ -37,25 +46,6 @@ namespace MiniEcommerce.Api.Migrations
                 principalColumn: "Id",
                 onDelete: ReferentialAction.Cascade);
 
-            // Orders
-            migrationBuilder.DropForeignKey(
-                name: "FK_Orders_AspNetUsers_UserId",
-                table: "Orders");
-
-            migrationBuilder.DropIndex(
-                name: "IX_Orders_UserId",
-                table: "Orders");
-
-            migrationBuilder.RenameColumn(
-                name: "UserId",
-                table: "Orders",
-                newName: "CustomerId");
-
-            migrationBuilder.RenameIndex(
-                name: "IX_Orders_UserId",
-                table: "Orders",
-                newName: "IX_Orders_CustomerId");
-
             migrationBuilder.AddForeignKey(
                 name: "FK_Orders_AspNetUsers_CustomerId",
                 table: "Orders",
@@ -68,10 +58,18 @@ namespace MiniEcommerce.Api.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Orders (reverse)
+            migrationBuilder.DropForeignKey(
+                name: "FK_Carts_AspNetUsers_CustomerId",
+                table: "Carts");
+
             migrationBuilder.DropForeignKey(
                 name: "FK_Orders_AspNetUsers_CustomerId",
                 table: "Orders");
+
+            migrationBuilder.RenameColumn(
+                name: "CustomerId",
+                table: "Orders",
+                newName: "UserId");
 
             migrationBuilder.RenameIndex(
                 name: "IX_Orders_CustomerId",
@@ -80,36 +78,13 @@ namespace MiniEcommerce.Api.Migrations
 
             migrationBuilder.RenameColumn(
                 name: "CustomerId",
-                table: "Orders",
+                table: "Carts",
                 newName: "UserId");
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_Orders_AspNetUsers_UserId",
-                table: "Orders",
-                column: "UserId",
-                principalTable: "AspNetUsers",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.Cascade);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Orders_UserId",
-                table: "Orders",
-                column: "UserId");
-
-            // Carts (reverse)
-            migrationBuilder.DropForeignKey(
-                name: "FK_Carts_AspNetUsers_CustomerId",
-                table: "Carts");
 
             migrationBuilder.RenameIndex(
                 name: "IX_Carts_CustomerId",
                 table: "Carts",
                 newName: "IX_Carts_UserId");
-
-            migrationBuilder.RenameColumn(
-                name: "CustomerId",
-                table: "Carts",
-                newName: "UserId");
 
             migrationBuilder.AddForeignKey(
                 name: "FK_Carts_AspNetUsers_UserId",
@@ -119,10 +94,13 @@ namespace MiniEcommerce.Api.Migrations
                 principalColumn: "Id",
                 onDelete: ReferentialAction.Cascade);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Carts_UserId",
-                table: "Carts",
-                column: "UserId");
+            migrationBuilder.AddForeignKey(
+                name: "FK_Orders_AspNetUsers_UserId",
+                table: "Orders",
+                column: "UserId",
+                principalTable: "AspNetUsers",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
         }
     }
 }
