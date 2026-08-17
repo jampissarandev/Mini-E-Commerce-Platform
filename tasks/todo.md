@@ -162,27 +162,27 @@
 
 ## Phase 6: Testing & Polish
 
-- [ ] **Task 18: Backend Testing (TDD foundation)**
+- [x] **Task 18: Backend Testing (TDD foundation)**
   - [x] 18a: Write `tasks/test-spec.md` (test strategy, conventions, DB choice)
-  - [ ] 18b: Scaffold `MiniEcommerce.Api.Tests` xUnit project + wire `dotnet test`
-  - [ ] 18c: `WebApplicationFactory<Program>` test host with EF Core InMemory
-  - [ ] 18d: TDD `Repository<T>` tests against InMemory DB
-  - [ ] 18e: TDD `ExceptionMiddleware` tests for all exception→status mappings
-  - [ ] 18f: TDD `AuthController` integration tests (register, login, /me, role gating)
+  - [x] 18b: Scaffold `MiniEcommerce.Api.Tests` xUnit project + wire `dotnet test`
+  - [x] 18c: `WebApplicationFactory<Program>` test host with EF Core InMemory
+  - [x] 18d: TDD `Repository<T>` tests against InMemory DB
+  - [x] 18e: TDD `ExceptionMiddleware` tests for all exception→status mappings
+  - [x] 18f: TDD `AuthController` integration tests (register, login, /me, role gating)
 
-- [ ] **Task 19: Frontend Testing (TDD foundation)**
-  - [ ] 19a: Install Vitest + RTL + jsdom + MSW; add `test` / `coverage` scripts
-  - [ ] 19b: `setup.ts` + MSW server + default handlers
-  - [ ] 19c: TDD `utils.test.ts` for the `cn()` helper
-  - [ ] 19d: Smoke `App.test.tsx` with MSW-stubbed `/api/health`
+- [x] **Task 19: Frontend Testing (TDD foundation)**
+  - [x] 19a: Install Vitest + RTL + jsdom + MSW; add `test` / `coverage` scripts
+  - [x] 19b: `setup.ts` + MSW server + default handlers
+  - [x] 19c: TDD `utils.test.ts` for the `cn()` helper
+  - [x] 19d: Smoke `App.test.tsx` with MSW-stubbed `/api/health`
 
-- [ ] **Task 20: Testing documentation & CI**
-  - [ ] 20a: Write `docs/testing.md` and update `README.md`
-  - [ ] 20b: Add `.github/workflows/ci.yml` running `dotnet test` + `npm test`
-  - [ ] 20c: Run full suite, confirm both pass
+- [x] **Task 20: Testing documentation & CI**
+  - [x] 20a: Write `docs/testing.md` and update `README.md` — `docs/testing.md` (shipped earlier) + `README.md` (2026-08-17)
+  - [x] 20b: Add `.github/workflows/ci.yml` running `dotnet test` + `npm test`
+  - [x] 20c: Run full suite, confirm both pass
 
 - [ ] **Task 21: Documentation**
-  - [ ] 21a: README + setup instructions
+  - [x] 21a: README + setup instructions — `README.md` (2026-08-17, closes 20a too)
   - [ ] 21b: Swagger annotations
   - [ ] 21c: VPS deployment guide
 
