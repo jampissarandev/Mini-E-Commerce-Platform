@@ -137,10 +137,10 @@
   - [x] 14b: Add/Edit product form with image upload
   - [x] 14c: Delete confirmation dialog
 
-- [ ] **Task 15: Admin — Order Management API**
-  - [ ] 15a: GET /admin/orders (with filters)
-  - [ ] 15b: GET /admin/orders/:id
-  - [ ] 15c: PUT /admin/orders/:id/status (with transition guard rails)
+- [x] **Task 15: Admin — Order Management API**
+  - [x] 15a: GET /admin/orders (with filters)
+  - [x] 15b: GET /admin/orders/:id
+  - [x] 15c: PUT /admin/orders/:id/status (with transition guard rails)
 
 - [ ] **Task 16: Admin — Order Management UI**
   - [ ] 16a: Orders table with status filter
