@@ -154,18 +154,26 @@ public class AdminOrdersController : ControllerBase
     /// <summary>
     /// Get the full detail of any order — customer identity, items with
     /// snapshotted names, prices and subtotals, shipping address, and totals.
+    /// Pass <c>?include=allowedNexts</c> to also get the set of statuses this
+    /// order may transition to next (used by the admin UI status dropdown).
     /// </summary>
     /// <param name="id">Order ID.</param>
+    /// <param name="include">Comma-separated list of optional sections, e.g. <c>allowedNexts</c>.</param>
     /// <param name="cancellationToken"></param>
     [HttpGet("{id:int}")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<AdminOrderDetail>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetOrderById(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetOrderById(
+        int id,
+        [FromQuery] string? include = null,
+        CancellationToken cancellationToken = default)
     {
         var order = await _context.Orders
             .Include(o => o.Customer)
             .Include(o => o.Items)
+            .ThenInclude(i => i.Product)
+            .ThenInclude(p => p.Images)
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
 
         // Throws → ExceptionMiddleware maps to 404 with code "ORDER_NOT_FOUND".
@@ -176,7 +184,12 @@ public class AdminOrdersController : ControllerBase
                 code: "ORDER_NOT_FOUND");
         }
 
-        return Ok(ApiResponse<AdminOrderDetail>.Ok(AdminOrderMapping.ToDetail(order)));
+        var includeAllowedNexts =
+            include?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Contains("allowedNexts", StringComparer.OrdinalIgnoreCase) == true;
+
+        return Ok(ApiResponse<AdminOrderDetail>.Ok(
+            AdminOrderMapping.ToDetail(order, includeAllowedNexts)));
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -269,6 +282,9 @@ public class AdminOrdersController : ControllerBase
         order.Status = requestedStatus;
         await _context.SaveChangesAsync(cancellationToken);
 
-        return Ok(ApiResponse<AdminOrderDetail>.Ok(AdminOrderMapping.ToDetail(order)));
+        // Always include allowedNexts on the status-update response so the
+        // FE can flip Status + AllowedNextStatuses optimistically (16c).
+        return Ok(ApiResponse<AdminOrderDetail>.Ok(
+            AdminOrderMapping.ToDetail(order, includeAllowedNexts: true)));
     }
 }

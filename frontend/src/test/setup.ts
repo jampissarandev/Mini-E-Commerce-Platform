@@ -14,6 +14,22 @@ import '@testing-library/jest-dom/vitest'
 import { afterAll, afterEach, beforeAll } from 'vitest'
 import { server } from './server'
 
+// jsdom does not implement PointerEvent capture methods that radix-ui
+// primitives (e.g. Select) call during pointer interactions. Without these
+// stubs, opening a Select in a test throws
+// "target.hasPointerCapture is not a function".
+if (typeof Element.prototype.hasPointerCapture !== 'function') {
+  Element.prototype.hasPointerCapture = () => false
+  Element.prototype.setPointerCapture = () => {}
+  Element.prototype.releasePointerCapture = () => {}
+}
+
+// jsdom does not implement scrollIntoView, which radix-ui Select calls on the
+// selected item when the dropdown opens.
+if (typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = () => {}
+}
+
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())

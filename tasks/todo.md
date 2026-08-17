@@ -142,10 +142,10 @@
   - [x] 15b: GET /admin/orders/:id
   - [x] 15c: PUT /admin/orders/:id/status (with transition guard rails)
 
-- [ ] **Task 16: Admin — Order Management UI**
-  - [ ] 16a: Orders table with status filter
-  - [ ] 16b: Order detail view
-  - [ ] 16c: Status update dropdown
+- [x] **Task 16: Admin — Order Management UI**
+  - [x] 16a: Orders table with status filter
+  - [x] 16b: Order detail view
+  - [x] 16c: Status update dropdown
 
 - [ ] **Task 17: Admin — Dashboard**
   - [ ] 17a: Dashboard stats endpoints

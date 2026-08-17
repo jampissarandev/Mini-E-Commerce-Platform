@@ -169,3 +169,54 @@ export interface OrderDto {
   createdAt: string
   items: OrderItemDto[]
 }
+
+// Admin order types — mirrors backend AdminOrderListItem / AdminOrderDetail.
+export interface AdminOrderListItem {
+  id: number
+  customerId: string
+  customerEmail: string
+  status: string
+  total: number
+  itemCount: number
+  createdAt: string
+}
+
+export interface AdminOrderCustomer {
+  id: string
+  email: string
+  fullName: string
+}
+
+export interface AdminOrderItemDto {
+  id: number
+  productId: number
+  productName: string
+  unitPrice: number
+  quantity: number
+  /** Live catalogue thumbnail (Product.Images[0] by SortOrder). */
+  imageUrl: string
+  subtotal: number
+}
+
+export interface AdminOrderDetail {
+  id: number
+  status: string
+  subtotal: number
+  shippingFee: number
+  total: number
+  shippingFullName: string
+  shippingStreet: string
+  shippingCity: string
+  shippingPostalCode: string
+  shippingCountry: string
+  shippingPhone: string
+  createdAt: string
+  customer: AdminOrderCustomer
+  items: AdminOrderItemDto[]
+  /** Populated when the detail endpoint is requested with ?include=allowedNexts. */
+  allowedNextStatuses: string[]
+}
+
+export interface UpdateOrderStatusRequest {
+  status: string
+}

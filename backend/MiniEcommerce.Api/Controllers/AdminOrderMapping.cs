@@ -1,5 +1,6 @@
 using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Models;
+using MiniEcommerce.Api.Services;
 
 namespace MiniEcommerce.Api.Controllers;
 
@@ -22,7 +23,7 @@ internal static class AdminOrderMapping
         CreatedAt = o.CreatedAt
     };
 
-    public static AdminOrderDetail ToDetail(Order o) => new()
+    public static AdminOrderDetail ToDetail(Order o, bool includeAllowedNexts = false) => new()
     {
         Id = o.Id,
         Status = o.Status.ToString(),
@@ -36,6 +37,11 @@ internal static class AdminOrderMapping
         ShippingCountry = o.ShippingCountry,
         ShippingPhone = o.ShippingPhone,
         CreatedAt = o.CreatedAt,
+        // AllowedNextStatuses is only populated on request (?include=allowedNexts)
+        // so the FE can render the status dropdown without a duplicate state machine.
+        AllowedNextStatuses = includeAllowedNexts
+            ? OrderStatusTransitions.AllowedNexts(o.Status).Select(s => s.ToString()).ToList()
+            : [],
         Customer = new AdminOrderCustomer
         {
             Id = o.CustomerId,
@@ -55,6 +61,12 @@ internal static class AdminOrderMapping
         ProductName = i.ProductName,
         UnitPrice = i.UnitPrice,
         Quantity = i.Quantity,
+        // Live catalogue thumbnail (Product.Images[0] by SortOrder) — the
+        // snapshot contract covers name/price only, not the image (16b).
+        ImageUrl = i.Product?.Images
+            .OrderBy(img => img.SortOrder)
+            .Select(img => img.Url)
+            .FirstOrDefault() ?? string.Empty,
         Subtotal = i.UnitPrice * i.Quantity
     };
 

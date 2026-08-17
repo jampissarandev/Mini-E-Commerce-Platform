@@ -15,6 +15,7 @@ import { NotFound } from '@/pages/NotFound'
 import { AdminDashboard } from '@/pages/admin/Dashboard'
 import { AdminProducts } from '@/pages/admin/Products'
 import { AdminOrders } from '@/pages/admin/Orders'
+import { AdminOrderDetail } from '@/pages/admin/OrderDetail'
 
 function App() {
   return (
@@ -63,6 +64,7 @@ function App() {
         <Route index element={<AdminDashboard />} />
         <Route path="products" element={<AdminProducts />} />
         <Route path="orders" element={<AdminOrders />} />
+        <Route path="orders/:id" element={<AdminOrderDetail />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

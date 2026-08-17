@@ -67,6 +67,15 @@ public record AdminOrderDetail
     public DateTime CreatedAt { get; init; }
     public AdminOrderCustomer Customer { get; init; } = null!;
     public List<AdminOrderItemDto> Items { get; init; } = [];
+
+    /// <summary>
+    /// The statuses this order may transition to next, per
+    /// <see cref="MiniEcommerce.Api.Services.OrderStatusTransitions.AllowedNexts"/>.
+    /// Only populated when the detail endpoint is requested with
+    /// <c>?include=allowedNexts</c> — the frontend renders this array directly
+    /// so the status dropdown never duplicates the server-side state machine.
+    /// </summary>
+    public List<string> AllowedNextStatuses { get; init; } = [];
 }
 
 public record AdminOrderCustomer
@@ -83,6 +92,14 @@ public record AdminOrderItemDto
     public string ProductName { get; init; } = string.Empty;
     public decimal UnitPrice { get; init; }
     public int Quantity { get; init; }
+
+    /// <summary>
+    /// Live catalogue image URL (<c>Product.Images[0]</c> by <c>SortOrder</c>).
+    /// v1 has no image snapshot on <c>OrderItem</c> — the snapshot contract
+    /// (CONTEXT.md rule #10) covers <c>ProductName</c> and <c>UnitPrice</c>
+    /// only, so the thumbnail is resolved from the current product.
+    /// </summary>
+    public string ImageUrl { get; init; } = string.Empty;
 
     /// <summary>
     /// Snapshotted line subtotal (<c>UnitPrice * Quantity</c>) computed at

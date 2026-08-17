@@ -94,4 +94,52 @@ export const handlers = [
       { status: 201 },
     ),
   ),
+
+  // ─── Admin order endpoints ─────────────────────────────────
+  // Default empty list so the AdminOrders page renders without per-test setup.
+  http.get(/\/api\/admin\/orders$/, () =>
+    HttpResponse.json({
+      success: true,
+      data: [],
+      meta: { page: 1, pageSize: 10, totalCount: 0, totalPages: 0 },
+    }),
+  ),
+
+  // Default detail so the AdminOrderDetail page renders without per-test setup.
+  http.get(/\/api\/admin\/orders\/\d+$/, () =>
+    HttpResponse.json({
+      success: true,
+      data: {
+        id: 1,
+        status: 'Pending',
+        subtotal: 100,
+        shippingFee: 10,
+        total: 110,
+        shippingFullName: 'Jane Doe',
+        shippingStreet: '123 Main St',
+        shippingCity: 'Springfield',
+        shippingPostalCode: '12345',
+        shippingCountry: 'USA',
+        shippingPhone: '555-1234',
+        createdAt: '2026-07-10T10:00:00Z',
+        customer: {
+          id: 'cust-1',
+          email: 'jane@example.com',
+          fullName: 'Jane Doe',
+        },
+        items: [
+          {
+            id: 1,
+            productId: 1,
+            productName: 'Laptop',
+            unitPrice: 100,
+            quantity: 1,
+            imageUrl: '/images/laptop.jpg',
+            subtotal: 100,
+          },
+        ],
+        allowedNextStatuses: ['Paid', 'Cancelled'],
+      },
+    }),
+  ),
 ]
