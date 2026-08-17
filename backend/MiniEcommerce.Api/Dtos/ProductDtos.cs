@@ -50,6 +50,20 @@ public record ProductCategoryDto
 }
 
 /// <summary>
+/// Category payload for the public catalog filter. Mirrors the TypeScript
+/// <c>CategoryDto</c> in <c>frontend/src/lib/types.ts</c>.
+/// </summary>
+public record CategoryDto
+{
+    public int Id { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public string Slug { get; init; } = string.Empty;
+
+    /// <summary>Number of <i>active</i> products in the category.</summary>
+    public int ProductCount { get; init; }
+}
+
+/// <summary>
 /// Nested product-image payload shared by the public and admin product
 /// detail surfaces, and the image-upload response. Mirrors the TypeScript
 /// <c>ProductImageDto</c> in <c>frontend/src/lib/types.ts</c>.
