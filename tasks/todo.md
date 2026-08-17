@@ -73,9 +73,9 @@
 ## Phase 3: Product Catalog (Customer)
 
 - [ ] **Task 7: Product API Endpoints**
-  - [ ] 7a: GET /products (pagination, filtering, sorting)
-  - [ ] 7b: GET /products/:id
-  - [ ] 7c: GET /categories
+  - [x] 7a: GET /products (pagination, filtering, sorting) — verified live 2026-08-17
+  - [x] 7b: GET /products/:id — verified live 2026-08-17
+  - [ ] 7c: GET /categories — **MISSING (2026-08-17)**: no public endpoint in backend; frontend `useCategories` calls `/api/categories` (MSW-mocked in tests, so tests pass but prod returns 404). Needs a `CategoriesController` + integration test.
 
 - [x] **Task 8: Product Catalog UI**
   - [x] 8a: Product card component + grid
@@ -186,14 +186,14 @@
   - [ ] 21b: Swagger annotations
   - [ ] 21c: VPS deployment guide
 
-- [ ] **Task 22: Docker Production Build**
-  - [ ] 22a: Multi-stage Dockerfile for API
-  - [ ] 22b: Multi-stage Dockerfile for frontend (Nginx)
-  - [ ] 22c: Production docker-compose + env config
+- [x] **Task 22: Docker Production Build**
+  - [x] 22a: Multi-stage Dockerfile for API — (2026-08-17) added non-root `appuser`, `curl` healthcheck, `wwwroot` for image uploads
+  - [x] 22b: Multi-stage Dockerfile for frontend (Nginx) — (2026-08-17) `frontend/Dockerfile` + `nginx.conf.template` (envsubst `API_UPSTREAM`, gzip, cache headers, SPA fallback)
+  - [x] 22c: Production docker-compose + env config — (2026-08-17) `docker-compose.prod.yml` + `.env.example`; verified end-to-end (db→api→web healthchain, SPA on :80, API on :5000, `/api` proxied)
 
 - [x] **Task 23: Dependency Upgrades (latest)**
   > Snapshot 2026-07-04. Strategy: see [plan.md "Dependency Upgrade Strategy"](plan.md#dependency-upgrade-strategy). One major per PR. Tests gate every upgrade.
-  - [ ] 23a: ImageSharp 3.1→4.0 — **BLOCKED**: v4.0.0 (released 2026-05-12) is a commercial product; build target requires a `SixLaborsLicenseKey` / `sixlabors.lic` file. Decision needed: keep 3.1.* (latest MIT/free) or purchase a commercial license.
+  - [x] 23a: ImageSharp 3.1→4.0 — **WON'T-DO (2026-08-17)**: v4.0.0 (released 2026-05-12) is a commercial product; build target requires a `SixLaborsLicenseKey` / `sixlabors.lic` file. Decision: **keep 3.1.\*** (latest MIT/free). Revisit only if a commercial license is purchased.
   - [x] 23b: Swashbuckle.AspNetCore 6.9→10.2 (commit `b9c187d`; `Program.cs` migrated: `Microsoft.OpenApi.Models`→`Microsoft.OpenApi`, `OpenApiReference`→`OpenApiSecuritySchemeReference`, `AddSecurityRequirement` now `Func<OpenApiDocument, OpenApiSecurityRequirement>` with `List<string>` scopes; 27/27 backend tests pass, 0 vulnerabilities)
   - [x] 23c: Vite 6→8 + @vitejs/plugin-react 4→6 (commit `eacb41c`; no config changes required; 55/55 frontend tests pass, production build clean)
   - [x] 23d: ESLint 9→10 (commit `d80e31e`; flat config forward-compatible; lint clean)
@@ -201,10 +201,10 @@
   - [x] 23f: Security audit (2026-07-04) — `npm audit`: **0 vulnerabilities**; `dotnet list package --vulnerable --include-transitive` on `MiniEcommerce.Api` and `MiniEcommerce.Api.Tests`: **0 vulnerable packages**. Branch `chore/deps-2026-07-04` ready to merge.
 
 ## Checkpoint: Complete
-- [ ] `dotnet test` returns 0
-- [ ] `npm test` returns 0
-- [ ] `npm run build` returns 0
-- [ ] `docker compose -f docker-compose.prod.yml up` brings up the full stack
+- [x] `dotnet test` returns 0 (165/165, prior session)
+- [x] `npm test` returns 0 (205/205, prior session)
+- [x] `npm run build` returns 0 (prior session)
+- [x] `docker compose -f docker-compose.prod.yml up` brings up the full stack (verified live 2026-08-17: db→api→web healthchain, SPA :80, API :5000, `/api` proxied)
 - [ ] Customer and admin flows tested end-to-end
 - [ ] README + Swagger cover the full surface
 - [ ] Every future behavior change has a test written first (TDD)

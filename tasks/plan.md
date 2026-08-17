@@ -1531,7 +1531,7 @@ Original sub-tasks (README, Swagger annotations, VPS deploy) all moved to **`tod
 ---
 
 #### Task 20: Docker Production Build (historical — see todo.md Task 22)
-Original sub-tasks 20a/20b/20c all moved to **`todo.md` Task 22** as 22a/22b/22c. **Status:** 🟡 In progress (22a shipped; 22b/22c pending).
+Original sub-tasks 20a/20b/20c all moved to **`todo.md` Task 22** as 22a/22b/22c. **Status:** ✅ Shipped 2026-08-17 (22a non-root + healthcheck + wwwroot; 22b frontend Dockerfile + nginx template; 22c `docker-compose.prod.yml` + `.env.example`; verified end-to-end).
 
 ##### Task 20a: Multi-stage Dockerfile for API
 **Description:** Production Dockerfile that builds and publishes a self-contained API image.
