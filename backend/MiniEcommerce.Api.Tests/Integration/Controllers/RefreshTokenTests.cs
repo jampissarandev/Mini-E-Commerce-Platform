@@ -55,11 +55,8 @@ public class RefreshTokenTests : IAsyncLifetime
         var client = _factory.CreateClient();
         await RegisterAsync(client, "r3@example.com");
 
-        // Issue a deterministic refresh token via the service (avoids cookie-container flakiness)
-        // Issue and immediately refresh using the *cookie* flow (via client) so both operations use the request-scoped DbContext
         var loginRes = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest { Email = "r3@example.com", Password = "Password123" });
         loginRes.StatusCode.Should().Be(HttpStatusCode.OK);
-        // Extract refresh_token value from Set-Cookie
         loginRes.Headers.TryGetValues("Set-Cookie", out var sc0).Should().BeTrue();
         var raw = sc0!.First(c => c.Contains("refresh_token")).Split(';')[0].Split('=')[1].Trim();
         raw = Uri.UnescapeDataString(raw);
@@ -80,6 +77,36 @@ public class RefreshTokenTests : IAsyncLifetime
         req2.Headers.Add("Cookie", $"refresh_token={raw}");
         var res2 = await fresh.SendAsync(req2);
         res2.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Refresh_ConcurrentRefreshes_FirstSucceedsSecondFails()
+    {
+        // Per ADR 0005: "first-wins, second-fails" when two refreshes race on the same cookie
+        var client = _factory.CreateClient();
+        await RegisterAsync(client, "r5@example.com");
+
+        var loginRes = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest { Email = "r5@example.com", Password = "Password123" });
+        loginRes.Headers.TryGetValues("Set-Cookie", out var sc0).Should().BeTrue();
+        var raw = sc0!.First(c => c.Contains("refresh_token")).Split(';')[0].Split('=')[1].Trim();
+        raw = Uri.UnescapeDataString(raw);
+
+        // Two independent clients + two independent DbContexts. Each posts
+        // /api/auth/refresh with the same cookie. The atomic UPDATE gate in
+        // RefreshTokenService.RotateAtomicAsync must reject the second one.
+        var a = _factory.CreateClient();
+        var b = _factory.CreateClient();
+        var req1 = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
+        req1.Headers.Add("Cookie", $"refresh_token={raw}");
+        var req2 = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
+        req2.Headers.Add("Cookie", $"refresh_token={raw}");
+
+        var r1 = await a.SendAsync(req1);
+        var r2 = await b.SendAsync(req2);
+
+        var statuses = new[] { r1.StatusCode, r2.StatusCode };
+        statuses.Count(s => s == HttpStatusCode.OK).Should().Be(1, "exactly one concurrent refresh should win");
+        statuses.Count(s => s == HttpStatusCode.Unauthorized).Should().Be(1, "exactly one concurrent refresh should be rejected as second-fail");
     }
 
     [Fact]
@@ -104,29 +131,26 @@ public class RefreshTokenTests : IAsyncLifetime
     public async Task Logout_ClearsCookie_AndRevokesToken()
     {
         var client = _factory.CreateClient();
-        using var scope = _factory.Services.CreateScope();
-        var svc = scope.ServiceProvider.GetRequiredService<RefreshTokenService>();
-        await RegisterAsync(client, "r4@example.com");
-        var ctx = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = ctx.Users.First(u => u.Email == "r4@example.com").Id;
-        // Need fresh scope for service ctx consistency — issue via new scope
-        using var scope2 = _factory.Services.CreateScope();
-        var svc2 = scope2.ServiceProvider.GetRequiredService<RefreshTokenService>();
-        var (_, raw) = await svc2.IssueAsync(userId);
+        var loginRes = await client.PostAsJsonAsync("/api/auth/register", new RegisterRequest
+        {
+            Email = "r4@example.com",
+            Password = "Password123",
+            FullName = "R4"
+        });
+        loginRes.StatusCode.Should().Be(HttpStatusCode.Created);
+        loginRes.Headers.TryGetValues("Set-Cookie", out var sc0).Should().BeTrue();
+        var raw = sc0!.First(c => c.Contains("refresh_token")).Split(';')[0].Split('=')[1].Trim();
+        raw = Uri.UnescapeDataString(raw);
+
         var req = new HttpRequestMessage(HttpMethod.Post, "/api/auth/logout");
         req.Headers.Add("Cookie", $"refresh_token={raw}");
         var res = await client.SendAsync(req);
         res.StatusCode.Should().Be(HttpStatusCode.OK);
+
         // Refresh with same token should now 401
         var req2 = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
         req2.Headers.Add("Cookie", $"refresh_token={raw}");
         var res2 = await client.SendAsync(req2);
         res2.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    private static IEnumerable<string> ExtractCookies(HttpResponseMessage res)
-    {
-        if (res.Headers.TryGetValues("Set-Cookie", out var v)) return v;
-        return [];
     }
 }

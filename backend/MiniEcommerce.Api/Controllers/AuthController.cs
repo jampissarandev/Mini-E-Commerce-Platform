@@ -18,6 +18,16 @@ namespace MiniEcommerce.Api.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
+    private const string RefreshCookieName = "refresh_token";
+    private const string RefreshCookiePath = "/api/auth";
+    private const string RefreshInvalidMsg = "Refresh token invalid or expired.";
+
+    private static readonly ApiError RefreshInvalidError = new()
+    {
+        Code = "REFRESH_INVALID",
+        Message = RefreshInvalidMsg
+    };
+
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IConfiguration _configuration;
     private readonly ApplicationDbContext _context;
@@ -115,24 +125,28 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Refresh(CancellationToken ct)
     {
-        var raw = Request.Cookies["refresh_token"];
+        var raw = Request.Cookies[RefreshCookieName];
         if (string.IsNullOrEmpty(raw))
             return Unauthorized(ApiResponse.Fail(new ApiError { Code = "REFRESH_REQUIRED", Message = "Refresh token missing." }));
 
         var current = await _refreshTokens.FindByRawAsync(raw, ct);
-        if (current is null || current.RevokedAt is not null || current.ExpiresAt < DateTime.UtcNow)
-            return Unauthorized(ApiResponse.Fail(new ApiError { Code = "REFRESH_INVALID", Message = "Refresh token invalid or expired." }));
+        if (current is null)
+            return Unauthorized(ApiResponse.Fail(RefreshInvalidError));
 
-        var rotated = await _refreshTokens.RotateAsync(current, ct);
+        // Race-safe rotation: issue first (so two concurrent refreshes both get a row),
+        // then mark old as RevokedAt in a single conditional UPDATE that returns 0
+        // rowsAffected if it was already revoked by a concurrent caller. First-wins,
+        // second-fails per ADR 0005.
+        var rotated = await _refreshTokens.RotateAtomicAsync(current, ct);
         if (rotated is null)
-            return Unauthorized(ApiResponse.Fail(new ApiError { Code = "REFRESH_INVALID", Message = "Refresh token invalid or expired." }));
+            return Unauthorized(ApiResponse.Fail(RefreshInvalidError));
 
         var (next, newRaw) = rotated.Value;
         AppendRefreshCookie(newRaw, next.ExpiresAt);
 
         var user = await _userManager.FindByIdAsync(current.CustomerId);
         if (user is null)
-            return Unauthorized(ApiResponse.Fail(new ApiError { Code = "REFRESH_INVALID", Message = "User not found." }));
+            return Unauthorized(ApiResponse.Fail(RefreshInvalidError));
 
         var auth = await GenerateAuthResponseAsync(user);
         return Ok(ApiResponse<AuthResponse>.Ok(auth));
@@ -142,35 +156,19 @@ public class AuthController : ControllerBase
     /// Revoke the active refresh token and clear the cookie.
     /// </summary>
     [HttpPost("logout")]
-    [SwaggerOperation(Summary = "Logout", Description = "Revokes the active refresh token (from cookie or Authorization header) and clears the cookie.")]
+    [SwaggerOperation(Summary = "Logout", Description = "Revokes the active refresh token (from cookie) and clears the cookie.")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Logout(CancellationToken ct)
     {
-        // Prefer cookie; fall back to revoking the caller's latest active token via identity if cookie absent
-        var raw = Request.Cookies["refresh_token"];
+        var raw = Request.Cookies[RefreshCookieName];
         if (!string.IsNullOrEmpty(raw))
         {
             var token = await _refreshTokens.FindByRawAsync(raw, ct);
-            if (token is not null && token.RevokedAt is null)
+            if (token is not null)
                 await _refreshTokens.RevokeAsync(token, ct);
         }
-        else
-        {
-            var uid = _userManager.GetUserId(User);
-            if (!string.IsNullOrEmpty(uid))
-            {
-                var active = await _context.RefreshTokens
-                    .Where(x => x.CustomerId == uid && x.RevokedAt == null && x.ExpiresAt > DateTime.UtcNow)
-                    .OrderByDescending(x => x.CreatedAt)
-                    .FirstOrDefaultAsync(ct);
-                if (active is not null)
-                    await _refreshTokens.RevokeAsync(active, ct);
-            }
-        }
 
-        Response.Cookies.Delete("refresh_token", new CookieOptions { Path = "/api/auth" });
-        // Also clear with root path for clients that stored it there
-        Response.Cookies.Delete("refresh_token");
+        Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = RefreshCookiePath });
         return Ok(ApiResponse<object>.Ok(new { message = "Logged out" }));
     }
 
@@ -288,12 +286,14 @@ public class AuthController : ControllerBase
 
     private void AppendRefreshCookie(string raw, DateTime expiresAt)
     {
-        Response.Cookies.Append("refresh_token", raw, new CookieOptions
+        Response.Cookies.Append(RefreshCookieName, raw, new CookieOptions
         {
             HttpOnly = true,
-            Secure = HttpContext.Request.IsHttps,
+            // ADR 0005: "httpOnly, Secure, SameSite=Lax". Secure by default; only the
+            // Testing environment may disable it (CI runs over plain HTTP).
+            Secure = !HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsEnvironment("Testing"),
             SameSite = SameSiteMode.Lax,
-            Path = "/api/auth",
+            Path = RefreshCookiePath,
             Expires = expiresAt
         });
     }

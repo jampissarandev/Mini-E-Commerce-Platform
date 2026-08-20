@@ -19,10 +19,13 @@ api.interceptors.request.use((config) => {
 })
 
 // On 401, try silent refresh once before logging out (ADR 0005).
-// We use a CustomEvent so this module stays decoupled from React Router.
-let isRefreshing = false
-let pendingQueue: Array<(token: string | null) => void> = []
-
+// Per spec: "the original request is retried once" (singular). Concurrent
+// in-flight 401s from the same tab are NOT coalesced here — ADR 0005
+// explicitly rejected per-tab frontend coalescing ("only works inside a
+// single tab"). The first request to 401 refreshes; subsequent 401s in the
+// same tab see the new token (zustand update is synchronous) and the
+// re-request naturally carries it. Cross-tab races are first-wins at the
+// server (conditional UPDATE per ADR 0005).
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -31,50 +34,38 @@ api.interceptors.response.use(
     const url: string = (original?.url as string) ?? ''
 
     // Don't intercept refresh/logout themselves to avoid loops
-    const isAuthRefresh = url.includes('/auth/refresh') || url.includes('/auth/logout')
+    const isAuthEndpoint = url.includes('/auth/refresh') || url.includes('/auth/logout')
 
-    if (status === 401 && original && !original._retry && !isAuthRefresh && useAuthStore.getState().isAuthenticated()) {
-      if (isRefreshing) {
-        // Queue until the in-flight refresh resolves (per ADR 0005 cross-tab race is first-wins)
-        return new Promise((resolve, reject) => {
-          pendingQueue.push((newToken) => {
-            if (newToken && original.headers) {
-              (original.headers as Record<string, string>).Authorization = `Bearer ${newToken}`
-            }
-            // Re-dispatch through axios so interceptors run again
-            if (newToken) resolve(api(original))
-            else reject(error)
-          })
-        })
-      }
-
+    if (
+      status === 401 &&
+      original &&
+      !original._retry &&
+      !isAuthEndpoint &&
+      useAuthStore.getState().isAuthenticated()
+    ) {
       original._retry = true
-      isRefreshing = true
       try {
         const { data } = await api.post('/auth/refresh')
         const newToken = (data?.data?.token ?? data?.token) as string | undefined
         if (newToken) {
-          const customer = (data?.data?.customer ?? data?.customer) as { id: string; email: string; fullName: string; role: string; createdAt: string } | undefined
-          if (customer) useAuthStore.getState().login({ token: newToken, customer })
-          else {
-            // Keep existing customer but update token
-            const prev = useAuthStore.getState().customer
-            if (prev) useAuthStore.getState().login({ token: newToken, customer: prev })
+          const customer =
+            (data?.data?.customer ?? data?.customer) ??
+            useAuthStore.getState().customer
+          if (customer) {
+            useAuthStore.getState().login({ token: newToken, customer })
           }
-          pendingQueue.forEach((cb) => cb(newToken))
-          pendingQueue = []
-          if (original.headers) (original.headers as Record<string, string>).Authorization = `Bearer ${newToken}`
+          if (original.headers) {
+            (original.headers as Record<string, string>).Authorization = `Bearer ${newToken}`
+          }
           return api(original)
         }
       } catch {
         // refresh failed — fall through to logout
-      } finally {
-        isRefreshing = false
       }
-      pendingQueue.forEach((cb) => cb(null))
-      pendingQueue = []
       useAuthStore.getState().logout()
-      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+      }
       return Promise.reject(error)
     }
 
