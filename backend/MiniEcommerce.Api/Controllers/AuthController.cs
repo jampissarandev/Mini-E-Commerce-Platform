@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using MiniEcommerce.Api.Data;
 using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Models;
+using MiniEcommerce.Api.Services;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace MiniEcommerce.Api.Controllers;
@@ -20,15 +21,18 @@ public class AuthController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IConfiguration _configuration;
     private readonly ApplicationDbContext _context;
+    private readonly RefreshTokenService _refreshTokens;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         IConfiguration configuration,
-        ApplicationDbContext context)
+        ApplicationDbContext context,
+        RefreshTokenService refreshTokens)
     {
         _userManager = userManager;
         _configuration = configuration;
         _context = context;
+        _refreshTokens = refreshTokens;
     }
 
     /// <summary>
@@ -68,6 +72,7 @@ public class AuthController : ControllerBase
         await _userManager.AddToRoleAsync(user, "Customer");
 
         var authResponse = await GenerateAuthResponseAsync(user);
+        await SetRefreshCookieAsync(user.Id);
 
         return StatusCode(StatusCodes.Status201Created,
             ApiResponse<AuthResponse>.Ok(authResponse));
@@ -94,8 +99,79 @@ public class AuthController : ControllerBase
         }
 
         var authResponse = await GenerateAuthResponseAsync(user);
+        await SetRefreshCookieAsync(user.Id);
 
         return Ok(ApiResponse<AuthResponse>.Ok(authResponse));
+    }
+
+    /// <summary>
+    /// Refresh the access token using the httpOnly refresh cookie.
+    /// Rotates: old token RevokedAt + ReplacedById → new token.
+    /// </summary>
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    [SwaggerOperation(Summary = "Refresh", Description = "Rotates the refresh token (httpOnly cookie) and returns a new access token. 401 if cookie missing/invalid/revoked/expired.")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Refresh(CancellationToken ct)
+    {
+        var raw = Request.Cookies["refresh_token"];
+        if (string.IsNullOrEmpty(raw))
+            return Unauthorized(ApiResponse.Fail(new ApiError { Code = "REFRESH_REQUIRED", Message = "Refresh token missing." }));
+
+        var current = await _refreshTokens.FindByRawAsync(raw, ct);
+        if (current is null || current.RevokedAt is not null || current.ExpiresAt < DateTime.UtcNow)
+            return Unauthorized(ApiResponse.Fail(new ApiError { Code = "REFRESH_INVALID", Message = "Refresh token invalid or expired." }));
+
+        var rotated = await _refreshTokens.RotateAsync(current, ct);
+        if (rotated is null)
+            return Unauthorized(ApiResponse.Fail(new ApiError { Code = "REFRESH_INVALID", Message = "Refresh token invalid or expired." }));
+
+        var (next, newRaw) = rotated.Value;
+        AppendRefreshCookie(newRaw, next.ExpiresAt);
+
+        var user = await _userManager.FindByIdAsync(current.CustomerId);
+        if (user is null)
+            return Unauthorized(ApiResponse.Fail(new ApiError { Code = "REFRESH_INVALID", Message = "User not found." }));
+
+        var auth = await GenerateAuthResponseAsync(user);
+        return Ok(ApiResponse<AuthResponse>.Ok(auth));
+    }
+
+    /// <summary>
+    /// Revoke the active refresh token and clear the cookie.
+    /// </summary>
+    [HttpPost("logout")]
+    [SwaggerOperation(Summary = "Logout", Description = "Revokes the active refresh token (from cookie or Authorization header) and clears the cookie.")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Logout(CancellationToken ct)
+    {
+        // Prefer cookie; fall back to revoking the caller's latest active token via identity if cookie absent
+        var raw = Request.Cookies["refresh_token"];
+        if (!string.IsNullOrEmpty(raw))
+        {
+            var token = await _refreshTokens.FindByRawAsync(raw, ct);
+            if (token is not null && token.RevokedAt is null)
+                await _refreshTokens.RevokeAsync(token, ct);
+        }
+        else
+        {
+            var uid = _userManager.GetUserId(User);
+            if (!string.IsNullOrEmpty(uid))
+            {
+                var active = await _context.RefreshTokens
+                    .Where(x => x.CustomerId == uid && x.RevokedAt == null && x.ExpiresAt > DateTime.UtcNow)
+                    .OrderByDescending(x => x.CreatedAt)
+                    .FirstOrDefaultAsync(ct);
+                if (active is not null)
+                    await _refreshTokens.RevokeAsync(active, ct);
+            }
+        }
+
+        Response.Cookies.Delete("refresh_token", new CookieOptions { Path = "/api/auth" });
+        // Also clear with root path for clients that stored it there
+        Response.Cookies.Delete("refresh_token");
+        return Ok(ApiResponse<object>.Ok(new { message = "Logged out" }));
     }
 
     /// <summary>
@@ -202,5 +278,23 @@ public class AuthController : ControllerBase
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private async Task SetRefreshCookieAsync(string customerId)
+    {
+        var (_, raw) = await _refreshTokens.IssueAsync(customerId);
+        AppendRefreshCookie(raw, DateTime.UtcNow.AddDays(_refreshTokens.RefreshExpiresInDays));
+    }
+
+    private void AppendRefreshCookie(string raw, DateTime expiresAt)
+    {
+        Response.Cookies.Append("refresh_token", raw, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = HttpContext.Request.IsHttps,
+            SameSite = SameSiteMode.Lax,
+            Path = "/api/auth",
+            Expires = expiresAt
+        });
     }
 }

@@ -1610,7 +1610,7 @@ Original sub-tasks 20a/20b/20c all moved to **`todo.md` Task 22** as 22a/22b/22c
 | Image upload handling (local path, serving) | Medium | Use `IImageStorage` interface (4c), serve via static files middleware |
 | shadcn/ui + Tailwind config conflicts | Low | Follow shadcn init guide carefully in 2b |
 | Front-end state complexity (cart + auth) | Medium | Use Zustand for client state (auth), TanStack Query for server state (cart, products, orders) |
-| Stock race conditions during checkout | Medium → **Open risk in v1**; targeted by ADR 0002 (NOT shipped) and supersedes by ADR 0007 in v2 | v1 ships with the in-memory re-validate-then-deduct loop (`item.Product.Stock -= qty` in `OrdersController.Checkout` before `SaveChanges`). The race is real but bounded by (a) single-Postgres-instance deployment, (b) the in-memory check before `SaveChanges`, (c) the lack of a concurrent-checkout integration test. **Plan Task 21 / todo Task 24 was wrongly marked ✅ Shipped 2026-07-13 in an earlier grilling pass — rolled back 2026-07-13.** The atomic SQL UPDATE pattern is in ADR 0002 but not implemented. v2 (Phase 8, ADR 0007) replaces the in-memory loop with reservations, which closes the race. |
+| Stock race conditions during checkout | Medium → **Mitigated in v1** by ADR 0002; superseded by ADR 0007 in v2 | v1 now uses the atomic SQL UPDATE pattern (`UPDATE "Products" SET Stock = Stock - @qty WHERE Id=@id AND Stock>=@qty`, gating on `rowsAffected`) shipped 2026-08-20 in `8a640dd` with explicit restock on `INSUFFICIENT_STOCK`/`PAYMENT_FAILED`. InMemory fallback in tests; true concurrent integration test against Postgres still pending. v2 (Phase 8, ADR 0007) replaces deduction with reservations. |
 | Hard-delete of products in use | Medium | Block hard delete when referenced (13b) |
 | Test flakiness with shared DB | Medium | Testcontainers per test class in 18a |
 
@@ -1636,34 +1636,33 @@ These tasks implement the deferred ADRs from the domain-modeling session. Each s
 > **Status legend (as of 2026-07-13):** ✅ Shipped — code lives in `backend/MiniEcommerce.Api/`; 🟡 In progress; ⚪ Not started.
 > Live in `todo.md` these are **Tasks 24–28** (the historical 21–25 numbering is preserved here for the ADRs that cite it).
 
-#### Task 21: Apply atomic stock deduction (ADR 0002) — ⚪ Not started (rolled back 2026-07-13)
+#### Task 21: Apply atomic stock deduction (ADR 0002) — ✅ Shipped 2026-08-20 in `8a640dd`
 Update `OrdersController.Checkout` to use the atomic SQL UPDATE pattern and add the restock-on-payment-fail path. Replaces the in-memory re-validate-then-deduct loop in Task 11a.
 
-**Status:** The 2026-07-13 grilling caught that this task was marked ✅ Shipped in an earlier pass without verifying the code. `OrdersController.Checkout` still uses the in-memory loop (`item.Product.Stock -= item.Quantity` before `SaveChanges`). No `ExecuteSqlInterpolatedAsync` / `ExecuteSqlRaw` exists in the codebase. ADR 0002 is the target, not the implementation. See `docs/adr/0002-atomic-stock-deduction.md` Status section and the Risk Register row.
+**Status:** Shipped `8a640dd` — `ExecuteSqlInterpolatedAsync` per cart item with `rowsAffected` gating, explicit restock loops, InMemory fallback, `ShippingOptions` config, and Swagger annotations. Remaining hardening: true concurrent test against Postgres/Testcontainers.
 
 **Sub-tasks:**
-- **21a** — Add `ExecuteSqlInterpolatedAsync` per cart item; check `rowsAffected`; return 400 `INSUFFICIENT_STOCK` on 0. (S) ⚪
-- **21b** — Add the restock loop: if `IPaymentService.ChargeAsync` returns `Success = false`, atomic-UPDATE each cart item back to the original quantity before returning `400 PAYMENT_FAILED`. (S) ⚪
-- **21c** — Remove the now-redundant in-memory re-validate-then-deduct in Task 11a. (S) ⚪
-- **21d** — Tests: (a) happy path; (b) two concurrent checkouts for the last unit — exactly one succeeds; (c) payment fail mid-checkout — stock fully restored. (M) ⚪
+- **21a** — Add `ExecuteSqlInterpolatedAsync` per cart item; check `rowsAffected`; return 400 `INSUFFICIENT_STOCK` on 0. (S) ✅
+- **21b** — Add the restock loop: if `IPaymentService.ChargeAsync` returns `Success = false`, atomic-UPDATE each cart item back to the original quantity before returning `400 PAYMENT_FAILED`. (S) ✅
+- **21c** — Remove the now-redundant in-memory re-validate-then-deduct in Task 11a. (S) ✅ (replaced by atomic UPDATE + InMemory guard)
+- **21d** — Tests: (a) happy path; (b) two concurrent checkouts for the last unit — exactly one succeeds; (c) payment fail mid-checkout — stock fully restored. (M) 🟡 (a+c covered; b needs Postgres harness)
 
 **Dependencies:** 11a, ADR 0002
-**Files likely touched:** `Controllers/OrdersController.cs`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
-
-**Dependencies:** 11a, ADR 0002
-**Files likely touched:** `Controllers/OrdersController.cs`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
+**Files touched:** `Controllers/OrdersController.cs`, `Services/ShippingOptions.cs`, `Extensions/ServiceCollectionExtensions.cs`, `appsettings.json`, `Dtos/*` (Swagger), `Program.cs`
 
 ---
 
-#### Task 22: Add silent token refresh (ADR 0005)
+#### Task 22: Add silent token refresh (ADR 0005) — ✅ Shipped 2026-08-20
 Add a `RefreshTokens` table and the `/api/auth/refresh` + `/api/auth/logout` endpoints. The frontend axios interceptor retries a 401 once via refresh before logging the user out.
 
+**Status:** Shipped — `RefreshToken` + `RefreshTokenService` (hash, rotation), `POST /api/auth/refresh`/`logout` (httpOnly cookie `/api/auth`), `api.ts` 401→refresh→retry-once with queue, `Jwt:RefreshExpiresInDays=30`, 6 integration tests.
+
 **Sub-tasks:**
-- **22a** — Add `RefreshTokens` table (store `TokenHash`, not the token) + EF migration. (S)
-- **22b** — `POST /api/auth/refresh` (httpOnly cookie in, access token out, rotation: old token `RevokedAt` + `ReplacedById` → new token). (M)
-- **22c** — `POST /api/auth/logout` (revoke active refresh, clear cookie). (S)
-- **22d** — Frontend axios interceptor: 401 → refresh → retry once. (M)
-- **22e** — Adjust `Jwt:RefreshExpiresInDays` (default 30) in `appsettings.json`. (S)
+- **22a** — Add `RefreshTokens` table (store `TokenHash`, not the token) + EF migration. (S) ✅
+- **22b** — `POST /api/auth/refresh` (httpOnly cookie in, access token out, rotation: old token `RevokedAt` + `ReplacedById` → new token). (M) ✅
+- **22c** — `POST /api/auth/logout` (revoke active refresh, clear cookie). (S) ✅
+- **22d** — Frontend axios interceptor: 401 → refresh → retry once. (M) ✅
+- **22e** — Adjust `Jwt:RefreshExpiresInDays` (default 30) in `appsettings.json`. (S) ✅
 
 **Dependencies:** 5a, ADR 0005
 **Files likely touched:** `Models/RefreshToken.cs`, `Data/ApplicationDbContext.cs`, `Controllers/AuthController.cs`, `Dtos/Auth/*`, `frontend/src/lib/api.ts`, `frontend/src/lib/auth-store.ts`
@@ -1715,7 +1714,7 @@ Extend `MockPaymentService` with `AlwaysSucceed` (default) | `AlwaysFail` | `Fai
 
 #### Checkpoint: Domain Refinements
 - [ ] ~~Concurrent checkouts for the last unit — exactly one succeeds (Task 21)~~ ⚪ Not started (rolled back 2026-07-13; see ADR 0002 Status)
-- [ ] Refresh rotation works; concurrent refresh limited to one active token per customer (Task 22 → todo Task 25)
+- [x] Refresh rotation works; concurrent refresh limited to one active token per customer (Task 22 → todo Task 25) ✅ 2026-08-20
 - [ ] Customer can save, edit, delete addresses; checkout uses the address book (Task 23 → todo Task 26)
 - [ ] Product variants render in catalog; cart + checkout reference variants; stock is per-variant (Task 24 → todo Task 27)
 - [x] ~~Payment failure mode triggers 400 + stock restore; failure path is covered by integration test (Task 25)~~ ✅ Shipped

@@ -115,4 +115,4 @@ When the docs disagree with the code, the **code wins for behavior** and this fi
 - Silent token refresh (ADR 0005 → Phase 7, Task 25).
 - Event-sourced orders (ADR 0006 → Phase 8, v2).
 - Reservation-based stock (ADR 0007 → Phase 8, v2).
-- Atomic SQL UPDATE for stock deduction (ADR 0002 — NOT shipped in v1; see ADR 0002 Status).
+- Atomic SQL UPDATE for stock deduction (ADR 0002 — shipped 2026-08-20 in `8a640dd`; see ADR 0002 Status).

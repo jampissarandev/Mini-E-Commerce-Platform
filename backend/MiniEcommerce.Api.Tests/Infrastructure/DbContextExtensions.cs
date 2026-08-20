@@ -38,6 +38,8 @@ public static class DbContextExtensions
         // NOTE: EF Core InMemory does not support ExecuteDeleteAsync (bulk SQL
         // DELETE), so we load + RemoveRange + SaveChanges instead. This is
         // acceptable for tests because the in-memory store is small.
+        // RefreshTokens has FK to RefreshTokens (ReplacedBy) — clear before parents
+        context.RefreshTokens.RemoveRange(context.RefreshTokens);
         context.OrderItems.RemoveRange(context.OrderItems);
         context.Orders.RemoveRange(context.Orders);
         context.CartItems.RemoveRange(context.CartItems);

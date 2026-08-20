@@ -18,6 +18,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CartItem> CartItems => Set<CartItem>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -102,6 +103,21 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(oi => oi.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.Property(oi => oi.UnitPrice).HasPrecision(18, 2);
+        });
+
+        // RefreshToken — ADR 0005 (Task 25)
+        builder.Entity<RefreshToken>(e =>
+        {
+            e.HasOne(rt => rt.Customer)
+                .WithMany()
+                .HasForeignKey(rt => rt.CustomerId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(rt => rt.TokenHash).IsUnique();
+            e.HasIndex(rt => rt.CustomerId);
+            e.HasOne(rt => rt.ReplacedBy)
+                .WithMany()
+                .HasForeignKey(rt => rt.ReplacedById)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

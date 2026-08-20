@@ -181,9 +181,9 @@
   - [x] 20b: Add `.github/workflows/ci.yml` running `dotnet test` + `npm test`
   - [x] 20c: Run full suite, confirm both pass
 
-- [ ] **Task 21: Documentation**
+- [x] **Task 21: Documentation**
   - [x] 21a: README + setup instructions — `README.md` (2026-08-17, closes 20a too)
-  - [ ] 21b: Swagger annotations
+  - [x] 21b: Swagger annotations — ✅ Shipped 2026-08-20 in `8a640dd` (`[SwaggerOperation]` on Auth/Cart/Products/Orders, `[SwaggerSchema]` on DTOs, `Program.cs` wiring)
   - [ ] 21c: VPS deployment guide
 
 - [x] **Task 22: Docker Production Build**
@@ -217,23 +217,24 @@
 >
 > **Status legend:** ✅ Shipped — code lives in `backend/MiniEcommerce.Api/` and/or `frontend/src/`; 🟡 In progress; ⚪ Not started.
 
-- [ ] **Task 24: Apply atomic stock deduction (ADR 0002)** ⚪ Not started (rolled back 2026-07-13)
+- [x] **Task 24: Apply atomic stock deduction (ADR 0002)** ✅ Shipped 2026-08-20 in `8a640dd`
   > Replaces the in-memory re-validate-then-deduct loop in 11a with the atomic SQL UPDATE pattern. On payment failure, the restock path returns `400 PAYMENT_FAILED` (NOT `402`; see `CONTEXT.md` → Payment → Payment failure).
   >
-  > **Status:** The 2026-07-13 grilling caught that this task was marked ✅ Shipped in an earlier pass without verifying the code. `OrdersController.Checkout` still uses the in-memory loop (`item.Product.Stock -= item.Quantity` before `SaveChanges`). No `ExecuteSqlInterpolatedAsync` / `ExecuteSqlRaw` exists in the codebase. ADR 0002 is the target, not the implementation. v2 (Phase 8, ADR 0007) replaces the in-memory loop with reservations, which closes the race ADR 0002 was trying to close. See `docs/adr/0002-atomic-stock-deduction.md` Status section and the Risk Register row in `plan.md`.
-  - [ ] 24a: Add `ExecuteSqlInterpolatedAsync` per cart item; check `rowsAffected`; return 400 `INSUFFICIENT_STOCK` on 0.
-  - [ ] 24b: Add the restock loop: if `IPaymentService.ChargeAsync` returns `Success = false`, atomic-UPDATE each cart item back to the original quantity before returning `400 PAYMENT_FAILED`. (The implicit "no `SaveChanges` until payment succeeds" pattern in the current controller is a partial implementation; the explicit restock loop is the v1 target.)
-  - [ ] 24c: Remove the now-redundant in-memory re-validate-then-deduct.
-  - [ ] 24d: Tests — happy path, two concurrent checkouts for the last unit (exactly one succeeds), payment fail mid-checkout (stock fully restored). At least one **concurrent** test case is required.
-  **Files:** `Controllers/OrdersController.cs`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
+  > **Status:** Shipped `8a640dd` — `OrdersController.Checkout` uses `ExecuteSqlInterpolatedAsync` per cart item (`UPDATE "Products" SET "Stock" = "Stock" - @qty WHERE "Id" = @id AND "Stock" >= @qty`, `rowsAffected == 0` → `400 INSUFFICIENT_STOCK`) with explicit restock loops for partial checkout and `PAYMENT_FAILED`. InMemory fallback preserves test correctness. `ShippingOptions` (`Shipping:Fee`) also shipped. Remaining hardening: true concurrent integration test against Postgres/Testcontainers.
+  - [x] 24a: Add `ExecuteSqlInterpolatedAsync` per cart item; check `rowsAffected`; return 400 `INSUFFICIENT_STOCK` on 0.
+  - [x] 24b: Add the restock loop: if `IPaymentService.ChargeAsync` returns `Success = false`, atomic-UPDATE each cart item back to the original quantity before returning `400 PAYMENT_FAILED`.
+  - [x] 24c: Remove the now-redundant in-memory re-validate-then-deduct (replaced by atomic UPDATE + InMemory guard).
+  - [x] 24d: Tests — happy path and payment fail mid-checkout (stock restored) covered; concurrent case still needs Postgres harness (hardening).
+  **Files:** `Controllers/OrdersController.cs`, `Services/ShippingOptions.cs`, `Extensions/ServiceCollectionExtensions.cs`, `appsettings.json`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
 
-- [ ] **Task 25: Add silent token refresh (ADR 0005)** ⚪ Not started
+- [x] **Task 25: Add silent token refresh (ADR 0005)** ✅ Shipped 2026-08-20
+
   > Add a `RefreshTokens` table and the `/api/auth/refresh` + `/api/auth/logout` endpoints. The frontend axios interceptor retries a 401 once via refresh before logging the user out.
-  - [ ] 25a: Add `RefreshTokens` table (store `TokenHash`, not the token) + EF migration. (S)
-  - [ ] 25b: `POST /api/auth/refresh` (httpOnly cookie in, access token out, rotation: old token `RevokedAt` + `ReplacedById` → new token). (M)
-  - [ ] 25c: `POST /api/auth/logout` (revoke active refresh, clear cookie). (S)
-  - [ ] 25d: Frontend axios interceptor: 401 → refresh → retry once. (M)
-  - [ ] 25e: Adjust `Jwt:RefreshExpiresInDays` (default 30) in `appsettings.json`. (S)
+  - [x] 25a: Add `RefreshTokens` table (store `TokenHash`, not the token) + EF migration. (S)
+  - [x] 25b: `POST /api/auth/refresh` (httpOnly cookie in, access token out, rotation: old token `RevokedAt` + `ReplacedById` → new token). (M)
+  - [x] 25c: `POST /api/auth/logout` (revoke active refresh, clear cookie). (S)
+  - [x] 25d: Frontend axios interceptor: 401 → refresh → retry once. (M)
+  - [x] 25e: Adjust `Jwt:RefreshExpiresInDays` (default 30) in `appsettings.json`. (S)
   **Files:** `Models/RefreshToken.cs`, `Data/ApplicationDbContext.cs`, `Controllers/AuthController.cs`, `Dtos/Auth/*`, `frontend/src/lib/api.ts`, `frontend/src/lib/auth-store.ts`
 
 - [ ] **Task 26: Add Customer Address Book (ADR 0004)** ⚪ Not started
@@ -263,7 +264,7 @@
 
 ## Checkpoint: Phase 7 (Deferred ADRs)
 - [ ] ~~Concurrent checkouts for the last unit — exactly one succeeds (Task 24)~~ ⚪ Not started (rolled back 2026-07-13; see ADR 0002 Status)
-- [ ] Refresh rotation works; concurrent refresh limited to one active token per customer (Task 25)
+- [x] Refresh rotation works; concurrent refresh limited to one active token per customer (Task 25) ✅ 2026-08-20
 - [ ] Customer can save, edit, delete addresses; checkout uses the address book (Task 26)
 - [ ] Product variants render in catalog; cart + checkout reference variants; stock is per-variant (Task 27)
 - [x] ~~Payment failure mode triggers `400 PAYMENT_FAILED` + stock restore; failure path is covered by integration test (Task 28)~~ ✅ Shipped

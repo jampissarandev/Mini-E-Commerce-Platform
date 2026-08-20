@@ -35,6 +35,7 @@ public static class ServiceCollectionExtensions
                 configuration.GetSection(ShippingOptions.SectionName));
         }
         services.AddScoped<IPaymentService, MockPaymentService>();
+        services.AddScoped<RefreshTokenService>();
 
         return services;
     }
