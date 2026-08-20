@@ -19,6 +19,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Address> Addresses => Set<Address>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -118,6 +119,17 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(rt => rt.ReplacedById)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Address — ADR 0004 (Task 26)
+        builder.Entity<Address>(e =>
+        {
+            e.HasOne(a => a.Customer)
+                .WithMany()
+                .HasForeignKey(a => a.CustomerId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(a => new { a.CustomerId, a.IsDefault })
+                .HasFilter(null); // no filter needed for InMemory compat
         });
     }
 }

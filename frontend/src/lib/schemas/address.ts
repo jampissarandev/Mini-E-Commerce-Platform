@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
-export const checkoutSchema = z.object({
-  addressId: z.number().optional(),
+export const addressSchema = z.object({
   fullName: z
     .string()
     .min(2, 'Full name is required.'),
@@ -22,4 +21,4 @@ export const checkoutSchema = z.object({
     .min(5, 'Phone is required.'),
 })
 
-export type CheckoutValues = z.infer<typeof checkoutSchema>
+export type AddressFormValues = z.infer<typeof addressSchema>

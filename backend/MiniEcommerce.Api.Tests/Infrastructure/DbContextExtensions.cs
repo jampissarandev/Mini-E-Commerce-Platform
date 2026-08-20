@@ -40,6 +40,7 @@ public static class DbContextExtensions
         // acceptable for tests because the in-memory store is small.
         // RefreshTokens has FK to RefreshTokens (ReplacedBy) — clear before parents
         context.RefreshTokens.RemoveRange(context.RefreshTokens);
+        context.Addresses.RemoveRange(context.Addresses);
         context.OrderItems.RemoveRange(context.OrderItems);
         context.Orders.RemoveRange(context.Orders);
         context.CartItems.RemoveRange(context.CartItems);

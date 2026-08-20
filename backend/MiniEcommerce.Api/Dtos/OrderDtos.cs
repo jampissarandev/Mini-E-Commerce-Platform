@@ -6,9 +6,12 @@ namespace MiniEcommerce.Api.Dtos;
 [SwaggerSchema("Checkout payload. Converts the customer's cart into an order.")]
 public record CheckoutRequest
 {
+    [SwaggerSchema("Optional address book id. If provided, the address fields are snapshotted from the saved address and the body fields are ignored.")]
+    public int? AddressId { get; init; }
+
     [Required(ErrorMessage = "Full name is required.")]
     [MinLength(2, ErrorMessage = "Full name must be at least 2 characters.")]
-    [SwaggerSchema("Recipient full name (snapshotted onto the order).")]
+    [SwaggerSchema("Recipient full name (snapshotted onto the order). Ignored if AddressId is set.")]
     public string FullName { get; init; } = string.Empty;
 
     [Required(ErrorMessage = "Street is required.")]

@@ -542,6 +542,133 @@ public class OrdersControllerTests : IAsyncLifetime
         body.Data.Items[0].Quantity.Should().Be(2);
     }
 
+    // ─────────────── POST /api/orders (addressId) ───────────────
+
+    [Fact]
+    public async Task Checkout_WithAddressId_SnapshotsAddressOntoOrder()
+    {
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "order-addr-id@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Create an address
+        var addrResponse = await client.PostAsJsonAsync("/api/addresses", new CreateAddressRequest
+        {
+            FullName = "Saved User",
+            Street = "789 Saved St",
+            City = "Addrville",
+            PostalCode = "99999",
+            Country = "CA",
+            Phone = "+1-555-0999"
+        });
+        var addrBody = (await addrResponse.Content.ReadFromJsonAsync<ApiResponse<AddressDto>>(Json))!;
+        var addressId = addrBody.Data!.Id;
+
+        // Add a product to the cart
+        await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductId = _productIds[0],
+            Quantity = 1
+        });
+
+        // Checkout with addressId — the flat body fields are ignored
+        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
+        {
+            AddressId = addressId,
+            FullName = "Body Name",
+            Street = "000 Body St",
+            City = "Body City",
+            PostalCode = "00000",
+            Country = "XX",
+            Phone = "+0-000-0000"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<OrderDto>>(Json);
+        body!.Success.Should().BeTrue();
+        body.Data!.ShippingFullName.Should().Be("Saved User");
+        body.Data.ShippingStreet.Should().Be("789 Saved St");
+        body.Data.ShippingCity.Should().Be("Addrville");
+        body.Data.ShippingPostalCode.Should().Be("99999");
+        body.Data.ShippingCountry.Should().Be("CA");
+        body.Data.ShippingPhone.Should().Be("+1-555-0999");
+    }
+
+    [Fact]
+    public async Task Checkout_WithNonExistentAddressId_Returns404()
+    {
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "order-addr-miss@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductId = _productIds[0],
+            Quantity = 1
+        });
+
+        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
+        {
+            AddressId = 99999,
+            FullName = "Body Name",
+            Street = "000 Body St",
+            City = "Body City",
+            PostalCode = "00000",
+            Country = "XX",
+            Phone = "+0-000-0000"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
+        body!.Error!.Code.Should().Be("ADDRESS_NOT_FOUND");
+    }
+
+    [Fact]
+    public async Task Checkout_WithAnotherUsersAddressId_Returns404()
+    {
+        var clientA = _factory.CreateClient();
+        var clientB = _factory.CreateClient();
+
+        // User A creates an address and places an order
+        var tokenA = await RegisterAndLoginAsync(clientA, "order-addr-a@example.com");
+        clientA.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+        var addrResponse = await clientA.PostAsJsonAsync("/api/addresses", new CreateAddressRequest
+        {
+            FullName = "User A",
+            Street = "111 A St",
+            City = "ACITY",
+            PostalCode = "11111",
+            Country = "US",
+            Phone = "+1-555-0001"
+        });
+        var addrBody = (await addrResponse.Content.ReadFromJsonAsync<ApiResponse<AddressDto>>(Json))!;
+        var addressId = addrBody.Data!.Id;
+
+        // User B tries to use User A's address
+        var tokenB = await RegisterAndLoginAsync(clientB, "order-addr-b@example.com");
+        clientB.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenB);
+        await clientB.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductId = _productIds[0],
+            Quantity = 1
+        });
+
+        var response = await clientB.PostAsJsonAsync("/api/orders", new CheckoutRequest
+        {
+            AddressId = addressId,
+            FullName = "Body Name",
+            Street = "000 Body St",
+            City = "Body City",
+            PostalCode = "00000",
+            Country = "XX",
+            Phone = "+0-000-0000"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
+        body!.Error!.Code.Should().Be("ADDRESS_NOT_FOUND");
+    }
+
     // ─────────────── helpers ───────────────
 
     /// <summary>

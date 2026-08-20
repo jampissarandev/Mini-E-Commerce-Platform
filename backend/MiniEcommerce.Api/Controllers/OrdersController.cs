@@ -66,6 +66,42 @@ public class OrdersController : ControllerBase
             }));
         }
 
+        // ── Address snapshot (ADR 0004, Task 26e) ──────────────────────────
+        // If an addressId is provided, load the saved address and snapshot it.
+        // Otherwise, use the flat fields from the request body.
+        string shippingFullName, shippingStreet, shippingCity, shippingPostalCode, shippingCountry, shippingPhone;
+
+        if (request.AddressId.HasValue)
+        {
+            var address = await _context.Addresses
+                .FirstOrDefaultAsync(a => a.Id == request.AddressId.Value && a.CustomerId == customerId, cancellationToken);
+
+            if (address is null)
+            {
+                return NotFound(ApiResponse.Fail(new ApiError
+                {
+                    Code = "ADDRESS_NOT_FOUND",
+                    Message = $"Address with ID {request.AddressId} was not found."
+                }));
+            }
+
+            shippingFullName = address.FullName;
+            shippingStreet = address.Street;
+            shippingCity = address.City;
+            shippingPostalCode = address.PostalCode;
+            shippingCountry = address.Country;
+            shippingPhone = address.Phone;
+        }
+        else
+        {
+            shippingFullName = request.FullName;
+            shippingStreet = request.Street;
+            shippingCity = request.City;
+            shippingPostalCode = request.PostalCode;
+            shippingCountry = request.Country;
+            shippingPhone = request.Phone;
+        }
+
         // Calculate totals (before stock deduction so Amount is known)
         var subtotal = cart.Items.Sum(i => i.UnitPrice * i.Quantity);
         var total = subtotal + shippingFee;
@@ -185,12 +221,12 @@ public class OrdersController : ControllerBase
         {
             CustomerId = customerId,
             Status = OrderStatus.Paid,
-            ShippingFullName = request.FullName,
-            ShippingStreet = request.Street,
-            ShippingCity = request.City,
-            ShippingPostalCode = request.PostalCode,
-            ShippingCountry = request.Country,
-            ShippingPhone = request.Phone,
+            ShippingFullName = shippingFullName,
+            ShippingStreet = shippingStreet,
+            ShippingCity = shippingCity,
+            ShippingPostalCode = shippingPostalCode,
+            ShippingCountry = shippingCountry,
+            ShippingPhone = shippingPhone,
             Subtotal = subtotal,
             ShippingFee = shippingFee,
             Total = total,

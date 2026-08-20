@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertTriangle, Loader2, ShoppingBag } from 'lucide-react'
+import { AlertTriangle, Loader2, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -18,6 +18,7 @@ import { useCart } from '@/lib/useCart'
 import { useCheckout } from '@/lib/useOrders'
 import { usePaymentMode } from '@/lib/usePaymentMode'
 import { useAuthStore } from '@/lib/auth-store'
+import { useAddresses } from '@/lib/useAddresses'
 import { checkoutSchema, type CheckoutValues } from '@/lib/schemas/checkout'
 
 function formatPrice(price: number): string {
@@ -31,8 +32,10 @@ const SHIPPING_FEE = 5.99
 
 export function Checkout() {
   const [serverError, setServerError] = useState<string | null>(null)
+  const [selectedAddressId, setSelectedAddressId] = useState<number | 'new'>('new')
   const { data: cartData, isLoading: cartLoading } = useCart()
   const { data: paymentModeData } = usePaymentMode()
+  const { data: addressesData } = useAddresses()
   const checkout = useCheckout()
   const navigate = useNavigate()
   const fullName = useAuthStore((s) => s.customer?.fullName ?? '')
@@ -41,6 +44,9 @@ export function Checkout() {
   const showPaymentWarning =
     paymentMode?.mode === 'AlwaysFail' ||
     paymentMode?.mode === 'FailIfAmountGreaterThan'
+
+  const addresses = addressesData?.data ?? []
+  const hasAddresses = addresses.length > 0
 
   const items = cartData?.data.items ?? []
   const subtotal = cartData?.data.total ?? 0
@@ -64,6 +70,28 @@ export function Checkout() {
       phone: '',
     },
   })
+
+  // When the user picks a saved address, fill the form fields
+  function handleAddressChange(value: string) {
+    if (value === 'new') {
+      setSelectedAddressId('new')
+      form.setValue('addressId', undefined)
+      form.reset({ fullName, street: '', city: '', postalCode: '', country: '', phone: '' })
+    } else {
+      const addrId = Number(value)
+      setSelectedAddressId(addrId)
+      const addr = addresses.find((a) => a.id === addrId)
+      if (addr) {
+        form.setValue('addressId', addrId)
+        form.setValue('fullName', addr.fullName)
+        form.setValue('street', addr.street)
+        form.setValue('city', addr.city)
+        form.setValue('postalCode', addr.postalCode)
+        form.setValue('country', addr.country)
+        form.setValue('phone', addr.phone)
+      }
+    }
+  }
 
   async function onSubmit(values: CheckoutValues) {
     setServerError(null)
@@ -136,6 +164,65 @@ export function Checkout() {
           <CardContent>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+                {hasAddresses && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Choose a shipping address</p>
+                    <div className="space-y-2">
+                      {addresses.map((addr) => (
+                        <label
+                          key={addr.id}
+                          className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
+                            selectedAddressId === addr.id
+                              ? 'border-primary bg-primary/5'
+                              : 'hover:bg-muted/50'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="addressPicker"
+                            value={addr.id}
+                            checked={selectedAddressId === addr.id}
+                            onChange={() => handleAddressChange(String(addr.id))}
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">{addr.fullName}</span>
+                              {addr.isDefault && (
+                                <span className="text-xs text-primary font-medium">(Default)</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">{addr.street}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {addr.city}, {addr.postalCode} · {addr.country}
+                            </p>
+                            <p className="text-sm text-muted-foreground">{addr.phone}</p>
+                          </div>
+                        </label>
+                      ))}
+                      <label
+                        className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
+                          selectedAddressId === 'new'
+                            ? 'border-primary bg-primary/5'
+                            : 'hover:bg-muted/50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="addressPicker"
+                          value="new"
+                          checked={selectedAddressId === 'new'}
+                          onChange={() => handleAddressChange('new')}
+                          className="mt-0.5"
+                        />
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Use a different address</span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
                 <FormField
                   control={form.control}
                   name="fullName"
@@ -143,7 +230,7 @@ export function Checkout() {
                     <FormItem>
                       <FormLabel>Full Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="Jane Doe" autoComplete="name" {...field} />
+                        <Input placeholder="Jane Doe" autoComplete="name" disabled={selectedAddressId !== 'new'} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -160,6 +247,7 @@ export function Checkout() {
                         <Input
                           placeholder="123 Main St"
                           autoComplete="street-address"
+                          disabled={selectedAddressId !== 'new'}
                           {...field}
                         />
                       </FormControl>
@@ -179,6 +267,7 @@ export function Checkout() {
                           <Input
                             placeholder="Springfield"
                             autoComplete="address-level2"
+                            disabled={selectedAddressId !== 'new'}
                             {...field}
                           />
                         </FormControl>
@@ -197,6 +286,7 @@ export function Checkout() {
                           <Input
                             placeholder="62701"
                             autoComplete="postal-code"
+                            disabled={selectedAddressId !== 'new'}
                             {...field}
                           />
                         </FormControl>
@@ -217,6 +307,7 @@ export function Checkout() {
                           <Input
                             placeholder="USA"
                             autoComplete="country-name"
+                            disabled={selectedAddressId !== 'new'}
                             {...field}
                           />
                         </FormControl>
@@ -235,6 +326,7 @@ export function Checkout() {
                           <Input
                             placeholder="+1-555-0100"
                             autoComplete="tel"
+                            disabled={selectedAddressId !== 'new'}
                             {...field}
                           />
                         </FormControl>
@@ -320,7 +412,6 @@ export function Checkout() {
 
             <Link to="/cart" className="block">
               <Button variant="outline" className="w-full">
-                <ShoppingBag className="mr-2 h-4 w-4" />
                 Back to Cart
               </Button>
             </Link>

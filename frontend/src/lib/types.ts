@@ -97,6 +97,30 @@ export interface UpdateCartItemRequest {
   quantity: number
 }
 
+// Address book types — mirrors backend AddressDto / CreateAddressRequest (ADR 0004).
+export interface AddressDto {
+  id: number
+  fullName: string
+  street: string
+  city: string
+  postalCode: string
+  country: string
+  phone: string
+  isDefault: boolean
+  createdAt: string
+}
+
+export interface CreateAddressRequest {
+  fullName: string
+  street: string
+  city: string
+  postalCode: string
+  country: string
+  phone: string
+}
+
+export type UpdateAddressRequest = CreateAddressRequest
+
 // Admin product types — mirrors backend AdminProductListItem / AdminProductDetailDto.
 export interface AdminProductListItem {
   id: number
@@ -137,6 +161,7 @@ export type UpdateProductRequest = CreateProductRequest
 
 // Order types — mirrors backend OrderDto / OrderItemDto / CheckoutRequest.
 export interface CheckoutRequest {
+  addressId?: number
   fullName: string
   street: string
   city: string

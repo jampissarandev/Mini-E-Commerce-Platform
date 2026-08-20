@@ -9,6 +9,7 @@ import { Cart } from '@/pages/Cart'
 import { Checkout } from '@/pages/Checkout'
 import { OrderConfirmation } from '@/pages/OrderConfirmation'
 import { OrderHistory } from '@/pages/OrderHistory'
+import { Addresses } from '@/pages/Addresses'
 import { Login } from '@/pages/Login'
 import { Register } from '@/pages/Register'
 import { NotFound } from '@/pages/NotFound'
@@ -46,6 +47,14 @@ function App() {
           element={
             <ProtectedRoute>
               <OrderConfirmation />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/account/addresses"
+          element={
+            <ProtectedRoute>
+              <Addresses />
             </ProtectedRoute>
           }
         />
