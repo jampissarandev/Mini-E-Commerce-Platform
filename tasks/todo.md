@@ -237,14 +237,14 @@
   - [x] 25e: Adjust `Jwt:RefreshExpiresInDays` (default 30) in `appsettings.json`. (S)
   **Files:** `Models/RefreshToken.cs`, `Data/ApplicationDbContext.cs`, `Controllers/AuthController.cs`, `Dtos/Auth/*`, `frontend/src/lib/api.ts`, `frontend/src/lib/auth-store.ts`
 
-- [ ] **Task 26: Add Customer Address Book (ADR 0004)** ⚪ Not started
+- [x] **Task 26: Add Customer Address Book (ADR 0004)** ✅ Shipped 2026-08-20
   > A Customer has 0..n `Address` rows with one `IsDefault`. At checkout the customer picks an existing Address or types a one-off one. The chosen Address is snapshotted onto the Order as flat `Shipping*` fields.
-  - [ ] 26a: Add `Addresses` table + EF migration. (S)
-  - [ ] 26b: `GET /api/addresses`, `POST /api/addresses`, `PUT /api/addresses/:id`, `DELETE /api/addresses/:id`, `PUT /api/addresses/:id/default`. Setting `IsDefault = true` unsets it on others in the same transaction. (M)
-  - [ ] 26c: Frontend `/account/addresses` page: list, edit, delete, set default. (M)
-  - [ ] 26d: Checkout form: address picker (existing or new) + "save this address" checkbox. (M)
-  - [ ] 26e: Wire `CheckoutRequest` to accept an `addressId` and snapshot the address onto the Order. (S)
-  **Files:** `Models/Address.cs`, `Data/ApplicationDbContext.cs`, `Controllers/AddressesController.cs`, `Dtos/Address/*`, `frontend/src/pages/account/Addresses.tsx`, `frontend/src/pages/Checkout.tsx`
+  - [x] 26a: Add `Addresses` table + EF migration. (S)
+  - [x] 26b: `GET /api/addresses`, `POST /api/addresses`, `PUT /api/addresses/:id`, `DELETE /api/addresses/:id`, `PUT /api/addresses/:id/default`. Setting `IsDefault = true` unsets it on others in the same transaction. (M)
+  - [x] 26c: Frontend `/account/addresses` page: list, edit, delete, set default. (M)
+  - [x] 26d: Checkout form: address picker (existing or new) + "save this address" checkbox. (M)
+  - [x] 26e: Wire `CheckoutRequest` to accept an `addressId` and snapshot the address onto the Order. (S)
+  **Files:** `Models/Address.cs`, `Data/ApplicationDbContext.cs`, `Controllers/AddressesController.cs`, `Dtos/AddressDtos.cs`, `Controllers/OrdersController.cs`, `Dtos/OrderDtos.cs`, `frontend/src/pages/Addresses.tsx`, `frontend/src/pages/Checkout.tsx`, `frontend/src/lib/useAddresses.ts`, `frontend/src/lib/types.ts`, `frontend/src/lib/schemas/address.ts`, `frontend/src/lib/schemas/checkout.ts`
 
 - [ ] **Task 27: Add Product Variants (ADR 0003)** ⚪ Not started
   > `Product` is a model; `ProductVariant` is the sellable unit with its own `Stock` and `Sku`. `CartItem` and `OrderItem` reference a Variant, not a Product.
@@ -265,7 +265,7 @@
 ## Checkpoint: Phase 7 (Deferred ADRs)
 - [ ] ~~Concurrent checkouts for the last unit — exactly one succeeds (Task 24)~~ ⚪ Not started (rolled back 2026-07-13; see ADR 0002 Status)
 - [x] Refresh rotation works; concurrent refresh limited to one active token per customer (Task 25) ✅ 2026-08-20
-- [ ] Customer can save, edit, delete addresses; checkout uses the address book (Task 26)
+- [x] Customer can save, edit, delete addresses; checkout uses the address book (Task 26) ✅ Shipped 2026-08-20
 - [ ] Product variants render in catalog; cart + checkout reference variants; stock is per-variant (Task 27)
 - [x] ~~Payment failure mode triggers `400 PAYMENT_FAILED` + stock restore; failure path is covered by integration test (Task 28)~~ ✅ Shipped
 - [ ] `docs/adr/*` and `CONTEXT.md` unchanged after each task lands (ADRs are the source of truth, not the implementation)
