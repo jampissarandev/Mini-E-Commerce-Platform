@@ -18,8 +18,6 @@ namespace MiniEcommerce.Api.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private const string RefreshCookieName = "refresh_token";
-    private const string RefreshCookiePath = "/api/auth";
     private const string RefreshInvalidMsg = "Refresh token invalid or expired.";
 
     private static readonly ApiError RefreshInvalidError = new()
@@ -125,7 +123,7 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Refresh(CancellationToken ct)
     {
-        var raw = Request.Cookies[RefreshCookieName];
+        var raw = Request.Cookies[RefreshCookieOptions.CookieName];
         if (string.IsNullOrEmpty(raw))
             return Unauthorized(ApiResponse.Fail(new ApiError { Code = "REFRESH_REQUIRED", Message = "Refresh token missing." }));
 
@@ -160,7 +158,7 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Logout(CancellationToken ct)
     {
-        var raw = Request.Cookies[RefreshCookieName];
+        var raw = Request.Cookies[RefreshCookieOptions.CookieName];
         if (!string.IsNullOrEmpty(raw))
         {
             var token = await _refreshTokens.FindByRawAsync(raw, ct);
@@ -168,7 +166,7 @@ public class AuthController : ControllerBase
                 await _refreshTokens.RevokeAsync(token, ct);
         }
 
-        Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = RefreshCookiePath });
+        Response.Cookies.Delete(RefreshCookieOptions.CookieName, new CookieOptions { Path = RefreshCookieOptions.CookiePath });
         return Ok(ApiResponse<object>.Ok(new { message = "Logged out" }));
     }
 
@@ -286,15 +284,8 @@ public class AuthController : ControllerBase
 
     private void AppendRefreshCookie(string raw, DateTime expiresAt)
     {
-        Response.Cookies.Append(RefreshCookieName, raw, new CookieOptions
-        {
-            HttpOnly = true,
-            // ADR 0005: "httpOnly, Secure, SameSite=Lax". Secure by default; only the
-            // Testing environment may disable it (CI runs over plain HTTP).
-            Secure = !HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsEnvironment("Testing"),
-            SameSite = SameSiteMode.Lax,
-            Path = RefreshCookiePath,
-            Expires = expiresAt
-        });
+        var env = HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
+        var options = RefreshCookieOptions.Build(expiresAt, env);
+        Response.Cookies.Append(RefreshCookieOptions.CookieName, raw, options);
     }
 }
