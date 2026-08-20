@@ -68,6 +68,7 @@ export function Checkout() {
       postalCode: '',
       country: '',
       phone: '',
+      saveAddress: false,
     },
   })
 
@@ -76,7 +77,7 @@ export function Checkout() {
     if (value === 'new') {
       setSelectedAddressId('new')
       form.setValue('addressId', undefined)
-      form.reset({ fullName, street: '', city: '', postalCode: '', country: '', phone: '' })
+      form.reset({ fullName, street: '', city: '', postalCode: '', country: '', phone: '', saveAddress: false })
     } else {
       const addrId = Number(value)
       setSelectedAddressId(addrId)
@@ -340,6 +341,21 @@ export function Checkout() {
                   <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                     {serverError}
                   </div>
+                )}
+
+                {selectedAddressId === 'new' && (
+                  <label
+                    className="flex items-center gap-2 rounded-md border border-input bg-background p-3 cursor-pointer hover:bg-muted/50"
+                    data-testid="save-address-toggle"
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-input accent-primary"
+                      checked={form.watch('saveAddress')}
+                      onChange={(e) => form.setValue('saveAddress', e.target.checked)}
+                    />
+                    <span className="text-sm">Save this address for future checkouts</span>
+                  </label>
                 )}
 
                 <Button

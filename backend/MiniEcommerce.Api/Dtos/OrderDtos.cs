@@ -9,6 +9,15 @@ public record CheckoutRequest : IValidatableObject
     [SwaggerSchema("Optional address book id. If provided, the address fields are snapshotted from the saved address and the body fields are ignored.")]
     public int? AddressId { get; init; }
 
+    /// <summary>
+    /// When true (and <see cref="AddressId"/> is null), the entered shipping
+    /// fields are added to the customer's address book after a successful
+    /// checkout (ADR 0004). Ignored when <see cref="AddressId"/> is set —
+    /// the address is already saved.
+    /// </summary>
+    [SwaggerSchema("If true and AddressId is null, persist the entered shipping fields to the customer's address book after a successful checkout.")]
+    public bool SaveAddress { get; init; }
+
     [SwaggerSchema("Recipient full name (snapshotted onto the order). Required unless AddressId is set.")]
     public string FullName { get; init; } = string.Empty;
 

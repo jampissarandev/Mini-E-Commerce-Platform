@@ -251,4 +251,45 @@ describe('Checkout page', () => {
     const banner = await screen.findByTestId('payment-mode-banner')
     expect(banner).toHaveTextContent(/\$50\.00/)
   })
+
+  it('shows the Save this address toggle when no saved addresses exist', async () => {
+    // Empty address book → "Use a different address" is the implicit choice
+    // → toggle is rendered so a returning customer can save a one-off.
+    server.use(
+      http.get(/\/api\/addresses$/, () =>
+        HttpResponse.json({ success: true, data: [] }),
+      ),
+    )
+    renderCheckout()
+    await screen.findByText('Laptop Pro')
+    expect(await screen.findByTestId('save-address-toggle')).toBeInTheDocument()
+  })
+
+  it('hides the Save this address toggle when a saved address is selected', async () => {
+    server.use(
+      http.get(/\/api\/addresses$/, () =>
+        HttpResponse.json({
+          success: true,
+          data: [{
+            id: 42,
+            fullName: 'Saved User',
+            street: '789 Saved St',
+            city: 'Addrville',
+            postalCode: '99999',
+            country: 'CA',
+            phone: '+1-555-0999',
+            isDefault: true,
+            createdAt: '2026-01-01T00:00:00Z',
+          }],
+        }),
+      ),
+    )
+    renderCheckout()
+    // Pick the saved address (radio is on the label, value=42).
+    const savedRadio = await screen.findByDisplayValue('42')
+    fireEvent.click(savedRadio)
+    await waitFor(() => {
+      expect(screen.queryByTestId('save-address-toggle')).not.toBeInTheDocument()
+    })
+  })
 })

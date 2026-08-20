@@ -612,6 +612,116 @@ public class OrdersControllerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Checkout_WithoutAddressId_WithSaveAddress_AddsToAddressBook()
+    {
+        // ADR 0004 'Save this address' checkbox: when set, the entered
+        // shipping fields are persisted to the address book after a
+        // successful checkout.
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "order-save-addr@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductId = _productIds[0],
+            Quantity = 1
+        });
+
+        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
+        {
+            FullName = "One-Off User",
+            Street = "1 One-Off Way",
+            City = "Onetown",
+            PostalCode = "11111",
+            Country = "US",
+            Phone = "+1-555-0001",
+            SaveAddress = true,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        // Verify the address is now in the address book.
+        var listResponse = await client.GetAsync("/api/addresses");
+        var list = await listResponse.Content.ReadFromJsonAsync<ApiResponse<List<AddressDto>>>(Json);
+        list!.Data!.Should().ContainSingle(a =>
+            a.FullName == "One-Off User" &&
+            a.Street == "1 One-Off Way" &&
+            a.IsDefault); // first address → auto-default
+    }
+
+    [Fact]
+    public async Task Checkout_WithoutAddressId_WithoutSaveAddress_DoesNotPersistAddress()
+    {
+        // Counter-test: without SaveAddress, the shipping fields are NOT
+        // added to the address book.
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "order-no-save@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductId = _productIds[0],
+            Quantity = 1
+        });
+
+        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
+        {
+            FullName = "Throwaway User",
+            Street = "9 Throwaway Ln",
+            City = "Nowhereville",
+            PostalCode = "00000",
+            Country = "XX",
+            Phone = "+0-000-0000",
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var listResponse = await client.GetAsync("/api/addresses");
+        var list = await listResponse.Content.ReadFromJsonAsync<ApiResponse<List<AddressDto>>>(Json);
+        list!.Data!.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Checkout_WithAddressId_SaveAddressIgnored()
+    {
+        // Counter-test: SaveAddress with AddressId is a no-op (the address
+        // is already saved; we don't duplicate).
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "order-saveignored@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var addrResponse = await client.PostAsJsonAsync("/api/addresses", new CreateAddressRequest
+        {
+            FullName = "Already Saved",
+            Street = "100 Pre-Saved",
+            City = "Savedville",
+            PostalCode = "99999",
+            Country = "CA",
+            Phone = "+1-555-9999"
+        });
+        var addrBody = (await addrResponse.Content.ReadFromJsonAsync<ApiResponse<AddressDto>>(Json))!;
+        var addressId = addrBody.Data!.Id;
+
+        await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductId = _productIds[0],
+            Quantity = 1
+        });
+
+        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
+        {
+            AddressId = addressId,
+            SaveAddress = true, // ignored when AddressId is set
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var listResponse = await client.GetAsync("/api/addresses");
+        var list = await listResponse.Content.ReadFromJsonAsync<ApiResponse<List<AddressDto>>>(Json);
+        list!.Data!.Should().HaveCount(1);
+    }
+
+    [Fact]
     public async Task Checkout_WithAddressId_SnapshotsAddressOntoOrder()
     {
         var client = _factory.CreateClient();
