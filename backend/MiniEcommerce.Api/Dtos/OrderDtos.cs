@@ -4,40 +4,53 @@ using Swashbuckle.AspNetCore.Annotations;
 namespace MiniEcommerce.Api.Dtos;
 
 [SwaggerSchema("Checkout payload. Converts the customer's cart into an order.")]
-public record CheckoutRequest
+public record CheckoutRequest : IValidatableObject
 {
     [SwaggerSchema("Optional address book id. If provided, the address fields are snapshotted from the saved address and the body fields are ignored.")]
     public int? AddressId { get; init; }
 
-    [Required(ErrorMessage = "Full name is required.")]
-    [MinLength(2, ErrorMessage = "Full name must be at least 2 characters.")]
-    [SwaggerSchema("Recipient full name (snapshotted onto the order). Ignored if AddressId is set.")]
+    [SwaggerSchema("Recipient full name (snapshotted onto the order). Required unless AddressId is set.")]
     public string FullName { get; init; } = string.Empty;
 
-    [Required(ErrorMessage = "Street is required.")]
-    [MinLength(3, ErrorMessage = "Street must be at least 3 characters.")]
-    [SwaggerSchema("Street address (snapshotted onto the order).")]
+    [SwaggerSchema("Street address (snapshotted onto the order). Required unless AddressId is set.")]
     public string Street { get; init; } = string.Empty;
 
-    [Required(ErrorMessage = "City is required.")]
-    [MinLength(2, ErrorMessage = "City must be at least 2 characters.")]
-    [SwaggerSchema("City (snapshotted onto the order).")]
+    [SwaggerSchema("City (snapshotted onto the order). Required unless AddressId is set.")]
     public string City { get; init; } = string.Empty;
 
-    [Required(ErrorMessage = "Postal code is required.")]
-    [MinLength(3, ErrorMessage = "Postal code must be at least 3 characters.")]
-    [SwaggerSchema("Postal code (snapshotted onto the order).")]
+    [SwaggerSchema("Postal code (snapshotted onto the order). Required unless AddressId is set.")]
     public string PostalCode { get; init; } = string.Empty;
 
-    [Required(ErrorMessage = "Country is required.")]
-    [MinLength(2, ErrorMessage = "Country must be at least 2 characters.")]
-    [SwaggerSchema("Country (snapshotted onto the order).")]
+    [SwaggerSchema("Country (snapshotted onto the order). Required unless AddressId is set.")]
     public string Country { get; init; } = string.Empty;
 
-    [Required(ErrorMessage = "Phone is required.")]
-    [MinLength(5, ErrorMessage = "Phone must be at least 5 characters.")]
-    [SwaggerSchema("Contact phone (snapshotted onto the order).")]
+    [SwaggerSchema("Contact phone (snapshotted onto the order). Required unless AddressId is set.")]
     public string Phone { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Shipping fields are required when the customer did not pick a saved
+    /// address (<see cref="AddressId"/> is null). When <see cref="AddressId"/>
+    /// is set the snapshot path in <c>OrdersController.Checkout</c> loads
+    /// these from the saved address and ignores the body fields, so they
+    /// must remain optional.
+    /// </summary>
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (AddressId.HasValue) yield break;
+
+        if (string.IsNullOrWhiteSpace(FullName) || FullName.Length < 2)
+            yield return new ValidationResult("Full name is required.", new[] { nameof(FullName) });
+        if (string.IsNullOrWhiteSpace(Street) || Street.Length < 3)
+            yield return new ValidationResult("Street is required.", new[] { nameof(Street) });
+        if (string.IsNullOrWhiteSpace(City) || City.Length < 2)
+            yield return new ValidationResult("City is required.", new[] { nameof(City) });
+        if (string.IsNullOrWhiteSpace(PostalCode) || PostalCode.Length < 3)
+            yield return new ValidationResult("Postal code is required.", new[] { nameof(PostalCode) });
+        if (string.IsNullOrWhiteSpace(Country) || Country.Length < 2)
+            yield return new ValidationResult("Country is required.", new[] { nameof(Country) });
+        if (string.IsNullOrWhiteSpace(Phone) || Phone.Length < 5)
+            yield return new ValidationResult("Phone is required.", new[] { nameof(Phone) });
+    }
 }
 
 [SwaggerSchema("Order payload returned to the customer.")]

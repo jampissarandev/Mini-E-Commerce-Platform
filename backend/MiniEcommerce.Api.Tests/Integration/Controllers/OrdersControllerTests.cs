@@ -545,6 +545,73 @@ public class OrdersControllerTests : IAsyncLifetime
     // ─────────────── POST /api/orders (addressId) ───────────────
 
     [Fact]
+    public async Task Checkout_WithAddressIdOnly_NoShippingFields_StillSucceeds()
+    {
+        // Regression: shipping fields were [Required] even when AddressId was
+        // set, blocking the documented addressId-only snapshot path.
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "order-addr-only@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // Create an address
+        var addrResponse = await client.PostAsJsonAsync("/api/addresses", new CreateAddressRequest
+        {
+            FullName = "Saved User",
+            Street = "789 Saved St",
+            City = "Addrville",
+            PostalCode = "99999",
+            Country = "CA",
+            Phone = "+1-555-0999"
+        });
+        var addrBody = (await addrResponse.Content.ReadFromJsonAsync<ApiResponse<AddressDto>>(Json))!;
+        var addressId = addrBody.Data!.Id;
+
+        // Add a product to the cart
+        await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductId = _productIds[0],
+            Quantity = 1
+        });
+
+        // Checkout with AddressId ONLY — shipping fields default to empty.
+        // Server must validate these fields are optional when AddressId is set.
+        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
+        {
+            AddressId = addressId
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<OrderDto>>(Json);
+        body!.Success.Should().BeTrue();
+        body.Data!.ShippingFullName.Should().Be("Saved User");
+        body.Data.ShippingStreet.Should().Be("789 Saved St");
+        body.Data.ShippingCity.Should().Be("Addrville");
+        body.Data.ShippingPostalCode.Should().Be("99999");
+        body.Data.ShippingCountry.Should().Be("CA");
+        body.Data.ShippingPhone.Should().Be("+1-555-0999");
+    }
+
+    [Fact]
+    public async Task Checkout_WithoutAddressId_EmptyShippingFields_Returns400()
+    {
+        // Counter-test: without AddressId, shipping fields ARE required.
+        // Ensures the conditional fix didn't over-relax the no-addressId path.
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "order-noaddr-empty@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductId = _productIds[0],
+            Quantity = 1
+        });
+
+        var response = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest());
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Checkout_WithAddressId_SnapshotsAddressOntoOrder()
     {
         var client = _factory.CreateClient();
