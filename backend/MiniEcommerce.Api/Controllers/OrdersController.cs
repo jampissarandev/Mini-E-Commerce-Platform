@@ -2,11 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MiniEcommerce.Api.Data;
 using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Exceptions;
 using MiniEcommerce.Api.Interfaces;
 using MiniEcommerce.Api.Models;
+using MiniEcommerce.Api.Services;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace MiniEcommerce.Api.Controllers;
 
@@ -18,31 +21,35 @@ public class OrdersController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IPaymentService _paymentService;
-
-    private const decimal ShippingFee = 5.99m;
+    private readonly ShippingOptions _shippingOptions;
 
     public OrdersController(
         ApplicationDbContext context,
         UserManager<ApplicationUser> userManager,
-        IPaymentService paymentService)
+        IPaymentService paymentService,
+        IOptions<ShippingOptions> shippingOptions)
     {
         _context = context;
         _userManager = userManager;
         _paymentService = paymentService;
+        _shippingOptions = shippingOptions.Value;
     }
 
     /// <summary>
     /// Create an order from the current user's cart.
-    /// Validates stock, processes payment, deducts stock, and clears the cart.
+    /// Validates stock atomically, processes payment, and clears the cart.
     /// </summary>
     [HttpPost]
+    [SwaggerOperation(Summary = "Checkout", Description = "Creates an order from the current user's cart. Atomically deducts stock (ADR 0002), charges via IPaymentService, and clears the cart. On payment failure stock is restored and 400 PAYMENT_FAILED is returned.")]
     [ProducesResponseType(typeof(ApiResponse<OrderDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Checkout(
         [FromBody] CheckoutRequest request,
         CancellationToken cancellationToken = default)
     {
         var customerId = _userManager.GetUserId(User)!;
+        var shippingFee = _shippingOptions.Fee;
 
         // Load the cart with items and products
         var cart = await _context.Carts
@@ -59,35 +66,125 @@ public class OrdersController : ControllerBase
             }));
         }
 
-        // Re-validate stock for each item
-        var stockErrors = new List<string>();
+        // Calculate totals (before stock deduction so Amount is known)
+        var subtotal = cart.Items.Sum(i => i.UnitPrice * i.Quantity);
+        var total = subtotal + shippingFee;
+
+        // ── Atomic stock deduction (ADR 0002) ──────────────────────────────
+        // Each cart item issues: UPDATE "Products" SET "Stock" = "Stock" - @qty
+        // WHERE "Id" = @id AND "Stock" >= @qty.  rowsAffected==0 means
+        // insufficient stock (or concurrent winner).  On the InMemory provider
+        // used by tests ExecuteSql is not supported — fall back to tracked
+        // check which is sufficient for single-threaded test correctness.
+        var isInMemory = _context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory";
+        var deducted = new List<CartItem>();
+
         foreach (var item in cart.Items)
         {
-            if (item.Quantity > item.Product.Stock)
+            int rowsAffected;
+            if (isInMemory)
             {
-                stockErrors.Add(
-                    $"Only {item.Product.Stock} units of \"{item.Product.Name}\" are available, but you have {item.Quantity} in your cart.");
+                // Simulate the atomic guard for the InMemory provider used in tests
+                var currentStock = item.Product.Stock;
+                if (currentStock < item.Quantity)
+                {
+                    rowsAffected = 0;
+                }
+                else
+                {
+                    item.Product.Stock -= item.Quantity;
+                    rowsAffected = 1;
+                }
             }
+            else
+            {
+                rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
+                    $"UPDATE \"Products\" SET \"Stock\" = \"Stock\" - {item.Quantity} WHERE \"Id\" = {item.ProductId} AND \"Stock\" >= {item.Quantity}",
+                    cancellationToken);
+            }
+
+            if (rowsAffected == 0)
+            {
+                // Restock any items already deducted in this checkout
+                foreach (var prev in deducted)
+                {
+                    if (isInMemory)
+                    {
+                        prev.Product.Stock += prev.Quantity;
+                    }
+                    else
+                    {
+                        await _context.Database.ExecuteSqlInterpolatedAsync(
+                            $"UPDATE \"Products\" SET \"Stock\" = \"Stock\" + {prev.Quantity} WHERE \"Id\" = {prev.ProductId}",
+                            cancellationToken);
+                    }
+                }
+
+                // Refresh tracked stock so subsequent error messages are accurate
+                var name = item.Product.Name;
+                var available = isInMemory ? item.Product.Stock : 0;
+                var msg = available > 0
+                    ? $"Only {available} units of \"{name}\" are available, but you have {item.Quantity} in your cart."
+                    : $"Insufficient stock for \"{name}\" (requested {item.Quantity}).";
+
+                return BadRequest(ApiResponse.Fail(new ApiError
+                {
+                    Code = "INSUFFICIENT_STOCK",
+                    Message = msg
+                }));
+            }
+
+            deducted.Add(item);
         }
 
-        if (stockErrors.Count > 0)
+        // Process payment (external IO — not inside a DB transaction on purpose)
+        var paymentResult = await _paymentService.ChargeAsync(new PaymentRequest
         {
+            OrderId = Guid.NewGuid(),
+            Amount = total,
+            Currency = "USD"
+        }, cancellationToken);
+
+        if (!paymentResult.Success)
+        {
+            // Explicit restock loop (ADR 0002 consequence): atomic UPDATE back
+            foreach (var item in deducted)
+            {
+                if (isInMemory)
+                {
+                    item.Product.Stock += item.Quantity;
+                }
+                else
+                {
+                    await _context.Database.ExecuteSqlInterpolatedAsync(
+                        $"UPDATE \"Products\" SET \"Stock\" = \"Stock\" + {item.Quantity} WHERE \"Id\" = {item.ProductId}",
+                        cancellationToken);
+                }
+            }
+
+            if (isInMemory)
+            {
+                // InMemory pending Stock mutations live on tracked entities;
+                // the restock above already restored them — just discard any
+                // pending order attempt by not calling SaveChanges.
+                // Ensure tracker doesn't hold stale Stock values.
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
             return BadRequest(ApiResponse.Fail(new ApiError
             {
-                Code = "INSUFFICIENT_STOCK",
-                Message = string.Join(" ", stockErrors)
+                Code = "PAYMENT_FAILED",
+                Message = paymentResult.Message ?? "Payment processing failed."
             }));
         }
 
-        // Calculate totals
-        var subtotal = cart.Items.Sum(i => i.UnitPrice * i.Quantity);
-        var total = subtotal + ShippingFee;
-
-        // Create the order
+        // Payment succeeded — persist order + clear cart. For relational
+        // provider the stock updates above are already committed via
+        // ExecuteSql; for InMemory the tracked Stock mutations are saved here.
         var order = new Order
         {
             CustomerId = customerId,
-            Status = OrderStatus.Pending,
+            Status = OrderStatus.Paid,
             ShippingFullName = request.FullName,
             ShippingStreet = request.Street,
             ShippingCity = request.City,
@@ -95,7 +192,7 @@ public class OrdersController : ControllerBase
             ShippingCountry = request.Country,
             ShippingPhone = request.Phone,
             Subtotal = subtotal,
-            ShippingFee = ShippingFee,
+            ShippingFee = shippingFee,
             Total = total,
             CreatedAt = DateTime.UtcNow,
             Items = cart.Items.Select(ci => new OrderItem
@@ -108,34 +205,6 @@ public class OrdersController : ControllerBase
         };
 
         _context.Orders.Add(order);
-
-        // Deduct stock
-        foreach (var item in cart.Items)
-        {
-            item.Product.Stock -= item.Quantity;
-        }
-
-        // Process payment
-        var paymentResult = await _paymentService.ChargeAsync(new PaymentRequest
-        {
-            OrderId = Guid.NewGuid(),
-            Amount = total,
-            Currency = "USD"
-        }, cancellationToken);
-
-        if (!paymentResult.Success)
-        {
-            return BadRequest(ApiResponse.Fail(new ApiError
-            {
-                Code = "PAYMENT_FAILED",
-                Message = paymentResult.Message ?? "Payment processing failed."
-            }));
-        }
-
-        // Mark order as paid
-        order.Status = OrderStatus.Paid;
-
-        // Clear the cart
         _context.CartItems.RemoveRange(cart.Items);
         cart.Items.Clear();
 
@@ -149,6 +218,7 @@ public class OrdersController : ControllerBase
     /// Get a paginated list of orders for the current user, newest first.
     /// </summary>
     [HttpGet]
+    [SwaggerOperation(Summary = "List my orders", Description = "Returns the current user's orders, newest first, paginated. 401 if not authenticated.")]
     [ProducesResponseType(typeof(ApiResponse<List<OrderDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetOrders(
         [FromQuery] int page = 1,
@@ -190,6 +260,7 @@ public class OrdersController : ControllerBase
     /// Get a specific order by ID. Only returns orders belonging to the current user.
     /// </summary>
     [HttpGet("{id:int}")]
+    [SwaggerOperation(Summary = "Get order by id", Description = "Returns the order with items if it belongs to the current user. 404 otherwise.")]
     [ProducesResponseType(typeof(ApiResponse<OrderDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetOrderById(

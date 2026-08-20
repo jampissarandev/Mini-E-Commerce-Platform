@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using MiniEcommerce.Api.Data;
 using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Models;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace MiniEcommerce.Api.Controllers;
 
@@ -26,6 +27,7 @@ public class CartController : ControllerBase
     /// Get the current user's cart with all items.
     /// </summary>
     [HttpGet]
+    [SwaggerOperation(Summary = "Get cart", Description = "Returns the current user's cart with all items. Creates an empty cart on first call (idempotent).")]
     [ProducesResponseType(typeof(ApiResponse<CartDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetCart(CancellationToken cancellationToken = default)
     {
@@ -40,6 +42,7 @@ public class CartController : ControllerBase
     /// Add an item to the cart. If the product is already in the cart, the quantity is increased.
     /// </summary>
     [HttpPost("items")]
+    [SwaggerOperation(Summary = "Add item to cart", Description = "Adds a product to the cart or increases quantity if already present. 400 INSUFFICIENT_STOCK if quantity exceeds stock.")]
     [ProducesResponseType(typeof(ApiResponse<CartItemDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<CartItemDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
@@ -128,6 +131,7 @@ public class CartController : ControllerBase
     /// Update the quantity of a cart item.
     /// </summary>
     [HttpPut("items/{id:int}")]
+    [SwaggerOperation(Summary = "Update cart item quantity", Description = "Updates quantity; 400 INSUFFICIENT_STOCK if exceeds stock. 404 if item not in cart.")]
     [ProducesResponseType(typeof(ApiResponse<CartItemDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
@@ -174,6 +178,7 @@ public class CartController : ControllerBase
     /// Remove an item from the cart.
     /// </summary>
     [HttpDelete("items/{id:int}")]
+    [SwaggerOperation(Summary = "Remove cart item", Description = "Removes a single line item from the cart. 404 if item not in cart.")]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemoveItem(
@@ -206,6 +211,7 @@ public class CartController : ControllerBase
     /// Clear all items from the cart.
     /// </summary>
     [HttpDelete]
+    [SwaggerOperation(Summary = "Clear cart", Description = "Removes all items from the current user's cart. Idempotent — clearing an empty cart returns 200.")]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> ClearCart(CancellationToken cancellationToken = default)
     {

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Services;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace MiniEcommerce.Api.Controllers;
 
@@ -42,8 +43,12 @@ public class PaymentsController : ControllerBase
     }
 }
 
+[SwaggerSchema("The currently active mock payment mode and threshold.")]
 public record MockPaymentModeDto
 {
+    [SwaggerSchema("Mock payment mode: AlwaysSucceed, AlwaysFail, or FailIfAmountGreaterThan.")]
     public string Mode { get; init; } = "AlwaysSucceed";
+
+    [SwaggerSchema("Amount threshold for FailIfAmountGreaterThan mode, or null otherwise.")]
     public decimal? FailIfAmountGreaterThan { get; init; }
 }

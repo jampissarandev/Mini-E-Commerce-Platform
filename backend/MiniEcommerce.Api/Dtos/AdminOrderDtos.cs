@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Swashbuckle.AspNetCore.Annotations;
 using MiniEcommerce.Api.Models;
 using MiniEcommerce.Api.Services;
 
@@ -17,6 +18,7 @@ namespace MiniEcommerce.Api.Dtos;
 public record UpdateOrderStatusRequest : IValidatableObject
 {
     [Required(ErrorMessage = "Status is required.")]
+    [SwaggerSchema("Target order status. Must be a valid transition from the current status.")]
     public string Status { get; init; } = string.Empty;
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
@@ -36,14 +38,28 @@ public record UpdateOrderStatusRequest : IValidatableObject
 
 // ═══════════════════ Response DTOs ═══════════════════
 
+[SwaggerSchema("Compact order row for the admin orders table.")]
 public record AdminOrderListItem
 {
+    [SwaggerSchema("Order id.")]
     public int Id { get; init; }
+
+    [SwaggerSchema("Customer's ApplicationUser id.")]
     public string CustomerId { get; init; } = string.Empty;
+
+    [SwaggerSchema("Customer's email address.")]
     public string CustomerEmail { get; init; } = string.Empty;
+
+    [SwaggerSchema("Order lifecycle status.")]
     public string Status { get; init; } = string.Empty;
+
+    [SwaggerSchema("Order total (Subtotal + ShippingFee).")]
     public decimal Total { get; init; }
+
+    [SwaggerSchema("Number of line items on the order.")]
     public int ItemCount { get; init; }
+
+    [SwaggerSchema("UTC timestamp of order creation.")]
     public DateTime CreatedAt { get; init; }
 }
 
@@ -78,19 +94,35 @@ public record AdminOrderDetail
     public List<string> AllowedNextStatuses { get; init; } = [];
 }
 
+[SwaggerSchema("Customer identity on an admin order detail.")]
 public record AdminOrderCustomer
 {
+    [SwaggerSchema("Customer's ApplicationUser id.")]
     public string Id { get; init; } = string.Empty;
+
+    [SwaggerSchema("Customer's email address.")]
     public string Email { get; init; } = string.Empty;
+
+    [SwaggerSchema("Customer's display name.")]
     public string FullName { get; init; } = string.Empty;
 }
 
+[SwaggerSchema("A single line item on an admin order detail.")]
 public record AdminOrderItemDto
 {
+    [SwaggerSchema("Order item id.")]
     public int Id { get; init; }
+
+    [SwaggerSchema("Id of the referenced product.")]
     public int ProductId { get; init; }
+
+    [SwaggerSchema("Product name snapshot at order time.")]
     public string ProductName { get; init; } = string.Empty;
+
+    [SwaggerSchema("Unit price snapshot at order time.")]
     public decimal UnitPrice { get; init; }
+
+    [SwaggerSchema("Quantity ordered.")]
     public int Quantity { get; init; }
 
     /// <summary>

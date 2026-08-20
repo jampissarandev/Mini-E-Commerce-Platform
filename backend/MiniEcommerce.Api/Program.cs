@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -165,8 +166,22 @@ builder.Services.AddSwaggerGen(options =>
     options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "Mini E-Commerce API",
-        Version = "v1"
+        Version = "v1",
+        Description = "REST API for the Mini E-Commerce Platform. " +
+            "Every response uses the ApiResponse<T> envelope; failures carry " +
+            "a machine-readable Code (parse the Code, never the Message). " +
+            "See CONTEXT.md for the domain glossary."
     });
+
+    // Surface the existing /// <summary> XML doc comments as operation
+    // summaries and schema descriptions. Registered before EnableAnnotations
+    // so an explicit [SwaggerSchema] attribute wins when both are present.
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    options.IncludeXmlComments(xmlPath);
+
+    // Enable [SwaggerOperation], [SwaggerSchema], [SwaggerSchemaExample] etc.
+    options.EnableAnnotations();
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {

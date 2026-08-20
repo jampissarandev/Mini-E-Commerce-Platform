@@ -4,6 +4,13 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Generate the XML doc file so Swagger can surface the existing
+         /// <summary> comments as operation summaries and schema
+         descriptions. CS1591 (missing XML comment on a public member) is
+         suppressed: not every public member carries a doc comment, and the
+         build must stay warning-free. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,6 +24,8 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.*" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+    <!-- [SwaggerOperation], [SwaggerSchema], [SwaggerSchemaExample] etc. -->
+    <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="10.2.3" />
   </ItemGroup>
 
 </Project>

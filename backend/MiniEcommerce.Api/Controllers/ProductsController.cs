@@ -4,6 +4,7 @@ using MiniEcommerce.Api.Data;
 using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Exceptions;
 using MiniEcommerce.Api.Models;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace MiniEcommerce.Api.Controllers;
 
@@ -29,6 +30,7 @@ public class ProductsController : ControllerBase
     /// <c>soft delete by default</c> rule in <c>CONTEXT.md</c>.
     /// </summary>
     [HttpGet]
+    [SwaggerOperation(Summary = "List products", Description = "Returns paginated active products for the public catalog. Inactive (soft-deleted) products are hidden.")]
     [ProducesResponseType(typeof(ApiResponse<List<ProductListItem>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetProducts(
         [FromQuery] int page = 1,
@@ -78,6 +80,7 @@ public class ProductsController : ControllerBase
     /// direct URL access.
     /// </summary>
     [HttpGet("{id:int}")]
+    [SwaggerOperation(Summary = "Get product by id", Description = "Returns full detail for a single active product. 404 for missing or inactive products.")]
     [ProducesResponseType(typeof(ApiResponse<ProductDetailDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProductById(

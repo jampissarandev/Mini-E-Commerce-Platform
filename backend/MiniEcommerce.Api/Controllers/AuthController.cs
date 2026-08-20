@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using MiniEcommerce.Api.Data;
 using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Models;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace MiniEcommerce.Api.Controllers;
 
@@ -34,6 +35,7 @@ public class AuthController : ControllerBase
     /// Register a new user account (Customer role by default).
     /// </summary>
     [HttpPost("register")]
+    [SwaggerOperation(Summary = "Register", Description = "Creates a Customer account and returns a JWT. 400 REGISTRATION_FAILED on duplicate email or weak password.")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
@@ -75,6 +77,7 @@ public class AuthController : ControllerBase
     /// Authenticate with email + password and receive a JWT.
     /// </summary>
     [HttpPost("login")]
+    [SwaggerOperation(Summary = "Login", Description = "Authenticates with email + password and returns a JWT access token. 401 INVALID_CREDENTIALS on failure.")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
@@ -102,6 +105,7 @@ public class AuthController : ControllerBase
     /// </summary>
     [Authorize(Roles = "Admin")]
     [HttpGet("admin/ping")]
+    [SwaggerOperation(Summary = "Admin ping", Description = "Verifies Admin role. 401 if unauthenticated, 403 if not Admin.")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -119,6 +123,7 @@ public class AuthController : ControllerBase
     /// </summary>
     [Authorize]
     [HttpGet("me")]
+    [SwaggerOperation(Summary = "Me", Description = "Returns the currently authenticated user's profile. 401 if not authenticated.")]
     [ProducesResponseType(typeof(ApiResponse<CustomerDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetCurrentUser()

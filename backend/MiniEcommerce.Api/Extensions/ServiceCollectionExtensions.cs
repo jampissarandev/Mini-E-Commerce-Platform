@@ -31,6 +31,8 @@ public static class ServiceCollectionExtensions
         {
             services.Configure<MockPaymentOptions>(
                 configuration.GetSection(MockPaymentOptions.SectionName));
+            services.Configure<ShippingOptions>(
+                configuration.GetSection(ShippingOptions.SectionName));
         }
         services.AddScoped<IPaymentService, MockPaymentService>();
 
