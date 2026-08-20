@@ -285,6 +285,90 @@ public class AddressesControllerTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task DeleteAddress_WhenDefaultDeleted_PromotesMostRecentRemaining()
+    {
+        // ADR 0004 invariant: at-most-one default per customer. After deleting
+        // the default, the most-recent remaining must be promoted.
+        var client = await AuthenticatedClientAsync("addr-delete-promote@example.com");
+
+        // Create 3 addresses in order; the first created is auto-default.
+        var oldest = await CreateAddressAsync(client, "Oldest");
+        await Task.Delay(5); // ensure CreatedAt differs
+        var middle = await CreateAddressAsync(client, "Middle");
+        await Task.Delay(5);
+        var newest = await CreateAddressAsync(client, "Newest");
+
+        oldest.IsDefault.Should().BeTrue();
+
+        // Delete the default.
+        var deleteResponse = await client.DeleteAsync($"/api/addresses/{oldest.Id}");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Assert: exactly one default, and it's the most recent.
+        var listResponse = await client.GetAsync("/api/addresses");
+        var list = await listResponse.Content.ReadFromJsonAsync<ApiResponse<List<AddressDto>>>(Json);
+        var defaults = list!.Data!.Where(a => a.IsDefault).ToList();
+        defaults.Should().HaveCount(1);
+        defaults[0].FullName.Should().Be("Newest");
+    }
+
+    [Fact]
+    public async Task DeleteAddress_WhenNonDefaultDeleted_DefaultRemainsIntact()
+    {
+        var client = await AuthenticatedClientAsync("addr-delete-nondef@example.com");
+
+        var oldest = await CreateAddressAsync(client, "Oldest");
+        await Task.Delay(5);
+        var middle = await CreateAddressAsync(client, "Middle");
+        await Task.Delay(5);
+        var newest = await CreateAddressAsync(client, "Newest");
+
+        // Delete a non-default.
+        var deleteResponse = await client.DeleteAsync($"/api/addresses/{middle.Id}");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Assert: original default still default, no spurious promotion.
+        var listResponse = await client.GetAsync("/api/addresses");
+        var list = await listResponse.Content.ReadFromJsonAsync<ApiResponse<List<AddressDto>>>(Json);
+        var defaults = list!.Data!.Where(a => a.IsDefault).ToList();
+        defaults.Should().HaveCount(1);
+        defaults[0].Id.Should().Be(oldest.Id);
+    }
+
+    [Fact]
+    public async Task DeleteAddress_WhenOnlyAddressExists_NoPromotionRequired()
+    {
+        // Edge case: user has one address (auto-default), deletes it.
+        // Result: 0 addresses, 0 defaults — invariant trivially holds.
+        var client = await AuthenticatedClientAsync("addr-delete-only@example.com");
+
+        var only = await CreateAddressAsync(client, "Lonely");
+        only.IsDefault.Should().BeTrue();
+
+        var deleteResponse = await client.DeleteAsync($"/api/addresses/{only.Id}");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var listResponse = await client.GetAsync("/api/addresses");
+        var list = await listResponse.Content.ReadFromJsonAsync<ApiResponse<List<AddressDto>>>(Json);
+        list!.Data!.Should().BeEmpty();
+    }
+
+    private async Task<AddressDto> CreateAddressAsync(HttpClient client, string name)
+    {
+        var response = await client.PostAsJsonAsync("/api/addresses", new CreateAddressRequest
+        {
+            FullName = name,
+            Street = "1 Test St",
+            City = "Testville",
+            PostalCode = "00000",
+            Country = "US",
+            Phone = "+1-555-0000"
+        });
+        var body = (await response.Content.ReadFromJsonAsync<ApiResponse<AddressDto>>(Json))!;
+        return body.Data!;
+    }
+
     // ─────────────── PUT /api/addresses/:id/default ───────────────
 
     [Fact]

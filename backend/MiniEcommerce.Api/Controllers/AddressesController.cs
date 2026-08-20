@@ -123,7 +123,7 @@ public class AddressesController : ControllerBase
     /// Delete an existing address.
     /// </summary>
     [HttpDelete("{id:int}")]
-    [SwaggerOperation(Summary = "Delete address", Description = "Deletes a saved address. Only the owner can delete.")]
+    [SwaggerOperation(Summary = "Delete address", Description = "Deletes a saved address. Only the owner can delete. If the deleted address was the default, the most-recent remaining address is promoted atomically.")]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAddress(
@@ -146,22 +146,62 @@ public class AddressesController : ControllerBase
 
         var wasDefault = address.IsDefault;
 
+        // ADR 0004 invariant: at-most-one default per customer.
+        //
+        // Delete + promote run inside one DB transaction so a concurrent
+        // reader never sees the window with zero defaults. The promotion is
+        // a single conditional UPDATE on Postgres (atomic at the DB level)
+        // and a tracked-entity update on the InMemory provider used by tests
+        // (which doesn't support real transactions — InMemory has no
+        // concurrency window to close anyway).
+        var isInMemory = _context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory";
+        await using var tx = isInMemory ? null : await _context.Database.BeginTransactionAsync(cancellationToken);
+
         _context.Addresses.Remove(address);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // If we deleted the default, promote the most recent remaining address
         if (wasDefault)
         {
-            var nextDefault = await _context.Addresses
-                .Where(a => a.CustomerId == customerId)
-                .OrderByDescending(a => a.CreatedAt)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (nextDefault is not null)
+            if (isInMemory)
             {
-                nextDefault.IsDefault = true;
-                await _context.SaveChangesAsync(cancellationToken);
+                var stillHasDefault = await _context.Addresses
+                    .AnyAsync(a => a.CustomerId == customerId && a.IsDefault, cancellationToken);
+                if (!stillHasDefault)
+                {
+                    var next = await _context.Addresses
+                        .Where(a => a.CustomerId == customerId)
+                        .OrderByDescending(a => a.CreatedAt)
+                        .FirstOrDefaultAsync(cancellationToken);
+                    if (next is not null)
+                    {
+                        next.IsDefault = true;
+                        await _context.SaveChangesAsync(cancellationToken);
+                    }
+                }
             }
+            else
+            {
+                // Single conditional UPDATE: only flips the most-recent
+                // remaining row if no default already exists, so it is a
+                // no-op for the "delete the only remaining address" case.
+                await _context.Database.ExecuteSqlInterpolatedAsync(
+                    $@"UPDATE ""Addresses"" SET ""IsDefault"" = true
+                       WHERE ""Id"" = (
+                         SELECT ""Id"" FROM ""Addresses""
+                         WHERE ""CustomerId"" = {customerId}
+                         ORDER BY ""CreatedAt"" DESC
+                         LIMIT 1
+                       ) AND NOT EXISTS (
+                         SELECT 1 FROM ""Addresses""
+                         WHERE ""CustomerId"" = {customerId} AND ""IsDefault"" = true
+                       )",
+                    cancellationToken);
+            }
+        }
+
+        if (tx is not null)
+        {
+            await tx.CommitAsync(cancellationToken);
         }
 
         return Ok(ApiResponse.Ok());
