@@ -292,4 +292,39 @@ describe('Checkout page', () => {
       expect(screen.queryByTestId('save-address-toggle')).not.toBeInTheDocument()
     })
   })
+
+  it('pre-fills the shipping form with the default address', async () => {
+    // ADR 0004: 'The Customer's first checkout can pre-fill from the
+    // default Address.' A returning customer with a default must not see
+    // a blank form.
+    server.use(
+      http.get(/\/api\/addresses$/, () =>
+        HttpResponse.json({
+          success: true,
+          data: [{
+            id: 42,
+            fullName: 'Default User',
+            street: '1 Default Way',
+            city: 'Defaultville',
+            postalCode: '11111',
+            country: 'US',
+            phone: '+1-555-0001',
+            isDefault: true,
+            createdAt: '2026-01-01T00:00:00Z',
+          }],
+        }),
+      ),
+    )
+    renderCheckout()
+    await screen.findByText('Laptop Pro')
+
+    await waitFor(() => {
+      expect((screen.getByLabelText(/full name/i) as HTMLInputElement).value).toBe('Default User')
+      expect((screen.getByLabelText(/^street/i) as HTMLInputElement).value).toBe('1 Default Way')
+      expect((screen.getByLabelText(/^city/i) as HTMLInputElement).value).toBe('Defaultville')
+      expect((screen.getByLabelText(/postal code/i) as HTMLInputElement).value).toBe('11111')
+      expect((screen.getByLabelText(/^country/i) as HTMLInputElement).value).toBe('US')
+      expect((screen.getByLabelText(/^phone/i) as HTMLInputElement).value).toBe('+1-555-0001')
+    })
+  })
 })

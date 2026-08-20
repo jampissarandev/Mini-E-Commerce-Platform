@@ -59,6 +59,23 @@ export function Checkout() {
     }
   }, [cartLoading, items.length, navigate])
 
+  // ADR 0004: pre-fill from the default address on first load. The
+  // useDefaultAddress hook is intentionally unused here — we also need
+  // the full address list for the picker, so we read from addressesData
+  // and pick the default once (guarded by the addressesLoaded flag so
+  // the user's explicit radio choice later still wins).
+  const addressesLoaded = !!addressesData?.data
+  useEffect(() => {
+    if (!addressesLoaded) return
+    const def = addresses.find((a) => a.isDefault)
+    if (!def) return
+    if (selectedAddressId === def.id) return // already pre-filled
+    handleAddressChange(String(def.id))
+    // Run once when the address list first arrives. Subsequent changes
+    // are driven by user input via the radio handler.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addressesLoaded])
+
   const form = useForm<CheckoutValues>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
