@@ -63,7 +63,7 @@ public class AddressesController : ControllerBase
     {
         var customerId = _userManager.GetUserId(User)!;
 
-        var address = await _addressBook.SaveSnapshotAsync(
+        var address = await _addressBook.CreateForCustomerAsync(
             customerId,
             request.FullName,
             request.Street,
@@ -129,76 +129,14 @@ public class AddressesController : ControllerBase
     {
         var customerId = _userManager.GetUserId(User)!;
 
-        var address = await _context.Addresses
-            .FirstOrDefaultAsync(a => a.Id == id && a.CustomerId == customerId, cancellationToken);
-
-        if (address is null)
+        var deleted = await _addressBook.DeleteAsync(customerId, id, cancellationToken);
+        if (!deleted)
         {
             return NotFound(ApiResponse.Fail(new ApiError
             {
                 Code = "ADDRESS_NOT_FOUND",
                 Message = $"Address with ID {id} was not found."
             }));
-        }
-
-        var wasDefault = address.IsDefault;
-
-        // ADR 0004 invariant: at-most-one default per customer.
-        //
-        // Delete + promote run inside one DB transaction so a concurrent
-        // reader never sees the window with zero defaults. The promotion is
-        // a single conditional UPDATE on Postgres (atomic at the DB level)
-        // and a tracked-entity update on the InMemory provider used by tests
-        // (which doesn't support real transactions — InMemory has no
-        // concurrency window to close anyway).
-        var isInMemory = _context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory";
-        await using var tx = isInMemory ? null : await _context.Database.BeginTransactionAsync(cancellationToken);
-
-        _context.Addresses.Remove(address);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        if (wasDefault)
-        {
-            if (isInMemory)
-            {
-                var stillHasDefault = await _context.Addresses
-                    .AnyAsync(a => a.CustomerId == customerId && a.IsDefault, cancellationToken);
-                if (!stillHasDefault)
-                {
-                    var next = await _context.Addresses
-                        .Where(a => a.CustomerId == customerId)
-                        .OrderByDescending(a => a.CreatedAt)
-                        .FirstOrDefaultAsync(cancellationToken);
-                    if (next is not null)
-                    {
-                        next.IsDefault = true;
-                        await _context.SaveChangesAsync(cancellationToken);
-                    }
-                }
-            }
-            else
-            {
-                // Single conditional UPDATE: only flips the most-recent
-                // remaining row if no default already exists, so it is a
-                // no-op for the "delete the only remaining address" case.
-                await _context.Database.ExecuteSqlInterpolatedAsync(
-                    $@"UPDATE ""Addresses"" SET ""IsDefault"" = true
-                       WHERE ""Id"" = (
-                         SELECT ""Id"" FROM ""Addresses""
-                         WHERE ""CustomerId"" = {customerId}
-                         ORDER BY ""CreatedAt"" DESC
-                         LIMIT 1
-                       ) AND NOT EXISTS (
-                         SELECT 1 FROM ""Addresses""
-                         WHERE ""CustomerId"" = {customerId} AND ""IsDefault"" = true
-                       )",
-                    cancellationToken);
-            }
-        }
-
-        if (tx is not null)
-        {
-            await tx.CommitAsync(cancellationToken);
         }
 
         return Ok(ApiResponse.Ok());
@@ -218,10 +156,8 @@ public class AddressesController : ControllerBase
     {
         var customerId = _userManager.GetUserId(User)!;
 
-        var address = await _context.Addresses
-            .FirstOrDefaultAsync(a => a.Id == id && a.CustomerId == customerId, cancellationToken);
-
-        if (address is null)
+        var updated = await _addressBook.SetDefaultAsync(customerId, id, cancellationToken);
+        if (!updated)
         {
             return NotFound(ApiResponse.Fail(new ApiError
             {
@@ -229,19 +165,6 @@ public class AddressesController : ControllerBase
                 Message = $"Address with ID {id} was not found."
             }));
         }
-
-        // Unset all other defaults for this customer
-        var otherDefaults = await _context.Addresses
-            .Where(a => a.CustomerId == customerId && a.Id != id && a.IsDefault)
-            .ToListAsync(cancellationToken);
-
-        foreach (var other in otherDefaults)
-        {
-            other.IsDefault = false;
-        }
-
-        address.IsDefault = true;
-        await _context.SaveChangesAsync(cancellationToken);
 
         return Ok(ApiResponse.Ok());
     }

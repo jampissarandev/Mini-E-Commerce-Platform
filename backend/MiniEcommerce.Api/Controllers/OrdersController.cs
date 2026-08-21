@@ -253,7 +253,7 @@ public class OrdersController : ControllerBase
         // single source of truth for the single-default invariant.
         if (request.SaveAddress && !request.AddressId.HasValue)
         {
-            await _addressBook.SaveSnapshotAsync(
+            await _addressBook.CreateForCustomerAsync(
                 customerId,
                 shippingFullName,
                 shippingStreet,
