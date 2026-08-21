@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MiniEcommerce.Api.Data;
 using MiniEcommerce.Api.Interfaces;
 using MiniEcommerce.Api.Models;
+using Npgsql;
 
 namespace MiniEcommerce.Api.Services;
 
@@ -14,13 +15,19 @@ namespace MiniEcommerce.Api.Services;
 ///     means the check-then-act pattern is race-free by construction.
 ///   - On Postgres, two callers can interleave their <c>AnyAsync</c> SELECTs
 ///     before either INSERT commits and both observe <c>hasAddresses=false</c>.
-///     The check-then-act here handles the common case, and a partial unique
-///     index <c>ON Addresses(CustomerId) WHERE IsDefault</c> backstops the
-///     concurrent-first-insert race at the DB level. The follow-up migration
-///     <c>AddAddressesUniqueDefaultIndex</c> adds that index.
+///     The partial unique index <c>IX_Addresses_OneDefaultPerCustomer</c>
+///     (added by <c>AddAddressesUniqueDefaultIndex</c>) backstops that race
+///     at the DB level: the second INSERT with <c>IsDefault=true</c> fails
+///     SQLSTATE 23505 and we retry as non-default.
 /// </summary>
 public class AddressBookService : IAddressBookService
 {
+    // Postgres SQLSTATE: unique_violation. The only unique index on the
+    // Addresses table that can fire during an INSERT is the partial unique
+    // index ON Addresses(CustomerId) WHERE IsDefault, so any 23505 here
+    // means "another concurrent insert beat us to the default".
+    private const string PostgresUniqueViolationSqlState = "23505";
+
     private readonly ApplicationDbContext _context;
 
     public AddressBookService(ApplicationDbContext context)
@@ -41,7 +48,11 @@ public class AddressBookService : IAddressBookService
         string phone,
         CancellationToken cancellationToken = default)
     {
-        // First address IsDefault=true, all later IsDefault=false.
+        // First address IsDefault=true, all later IsDefault=false. The
+        // check-then-act covers the common case; the partial unique index
+        // (Postgres) backstops the concurrent-first-insert race by failing
+        // the second INSERT with SQLSTATE 23505, which we catch and retry
+        // as non-default.
         var hasAddresses = await _context.Addresses
             .AnyAsync(a => a.CustomerId == customerId, cancellationToken);
 
@@ -59,9 +70,25 @@ public class AddressBookService : IAddressBookService
         };
 
         _context.Addresses.Add(address);
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsPostgresUniqueViolation(ex))
+        {
+            // The partial unique index fired: another concurrent insert
+            // beat us to IsDefault=true. Detach the failed entry, flip this
+            // row to non-default, and save again.
+            _context.Entry(address).State = EntityState.Detached;
+            address.IsDefault = false;
+            _context.Addresses.Add(address);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
         return address;
     }
+
+    private static bool IsPostgresUniqueViolation(DbUpdateException ex) =>
+        ex.InnerException is PostgresException pg && pg.SqlState == PostgresUniqueViolationSqlState;
 
     public async Task<bool> SetDefaultAsync(
         string customerId,

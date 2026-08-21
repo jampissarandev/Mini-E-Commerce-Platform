@@ -130,6 +130,18 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(a => new { a.CustomerId, a.IsDefault })
                 .HasFilter(null); // no filter needed for InMemory compat
+            // ADR 0004 invariant: at-most-one IsDefault=true per customer.
+            // Backstops the concurrent-first-INSERT race at the DB level
+            // (two callers can both observe AnyAsync=false before either
+            // commits; the second INSERT with IsDefault=true fails the
+            // unique constraint and AddressBookService retries as
+            // non-default). The InMemory provider used by tests ignores
+            // indexes, so the constraint is checked in app code there
+            // (single-threaded by construction).
+            e.HasIndex(a => a.CustomerId)
+                .IsUnique()
+                .HasFilter("\"IsDefault\" = true")
+                .HasDatabaseName("IX_Addresses_OneDefaultPerCustomer");
         });
     }
 }
