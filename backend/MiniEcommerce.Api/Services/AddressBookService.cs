@@ -90,6 +90,38 @@ public class AddressBookService : IAddressBookService
     private static bool IsPostgresUniqueViolation(DbUpdateException ex) =>
         ex.InnerException is PostgresException pg && pg.SqlState == PostgresUniqueViolationSqlState;
 
+    public async Task<bool> UpdateAsync(
+        string customerId,
+        int addressId,
+        string fullName,
+        string street,
+        string city,
+        string postalCode,
+        string country,
+        string phone,
+        CancellationToken cancellationToken = default)
+    {
+        // Editable fields only — IsDefault has its own endpoint (SetDefault)
+        // and is intentionally not touched here, so a PUT can never silently
+        // change a customer's default.
+        var address = await _context.Addresses
+            .FirstOrDefaultAsync(a => a.Id == addressId && a.CustomerId == customerId, cancellationToken);
+        if (address is null)
+        {
+            return false;
+        }
+
+        address.FullName = fullName;
+        address.Street = street;
+        address.City = city;
+        address.PostalCode = postalCode;
+        address.Country = country;
+        address.Phone = phone;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<bool> SetDefaultAsync(
         string customerId,
         int addressId,

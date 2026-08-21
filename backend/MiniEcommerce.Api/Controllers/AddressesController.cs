@@ -92,10 +92,23 @@ public class AddressesController : ControllerBase
     {
         var customerId = _userManager.GetUserId(User)!;
 
-        var address = await _context.Addresses
-            .FirstOrDefaultAsync(a => a.Id == id && a.CustomerId == customerId, cancellationToken);
+        // Route through the service so all address writes live on one seam
+        // (per the round-3 review: Divergent Change — UpdateAddress was the
+        // only mutator still touching _context directly while Create /
+        // SetDefault / Delete went through _addressBook). Future ADR-0004
+        // invariants will be added in one place.
+        var updated = await _addressBook.UpdateAsync(
+            customerId,
+            id,
+            request.FullName,
+            request.Street,
+            request.City,
+            request.PostalCode,
+            request.Country,
+            request.Phone,
+            cancellationToken);
 
-        if (address is null)
+        if (!updated)
         {
             return NotFound(ApiResponse.Fail(new ApiError
             {
@@ -104,15 +117,8 @@ public class AddressesController : ControllerBase
             }));
         }
 
-        address.FullName = request.FullName;
-        address.Street = request.Street;
-        address.City = request.City;
-        address.PostalCode = request.PostalCode;
-        address.Country = request.Country;
-        address.Phone = request.Phone;
-
-        await _context.SaveChangesAsync(cancellationToken);
-
+        var address = await _context.Addresses
+            .FirstAsync(a => a.Id == id && a.CustomerId == customerId, cancellationToken);
         return Ok(ApiResponse<AddressDto>.Ok(MapToDto(address)));
     }
 

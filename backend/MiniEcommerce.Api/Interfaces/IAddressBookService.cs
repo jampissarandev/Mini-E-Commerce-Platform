@@ -28,6 +28,24 @@ public interface IAddressBookService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Update the editable fields of an existing address (everything except
+    /// <c>IsDefault</c> — use <see cref="SetDefaultAsync"/> for that).
+    /// Returns <c>true</c> if the address was found and updated; <c>false</c>
+    /// if no address with that id belongs to the customer (callers should map
+    /// to <c>404 ADDRESS_NOT_FOUND</c>).
+    /// </summary>
+    Task<bool> UpdateAsync(
+        string customerId,
+        int addressId,
+        string fullName,
+        string street,
+        string city,
+        string postalCode,
+        string country,
+        string phone,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Mark an existing address as the customer's default. Unsets any other
     /// default for that customer. Returns <c>true</c> if the address was found
     /// and updated; <c>false</c> if no address with that id belongs to the
