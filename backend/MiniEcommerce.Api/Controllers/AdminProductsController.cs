@@ -157,10 +157,13 @@ public class AdminProductsController : ControllerBase
         await _context.SaveChangesAsync(cancellationToken);
 
         // Create a default variant for the new product — ADR 0003 (Task 27).
+        // Stock comes from the request so admins don't silently produce
+        // unsellable 0-stock inventory on every POST.
         var defaultVariant = new ProductVariant
         {
             ProductId = product.Id,
             Sku = $"SKU-{product.Id}",
+            Stock = request.InitialStock,
             IsActive = true
         };
         _context.ProductVariants.Add(defaultVariant);

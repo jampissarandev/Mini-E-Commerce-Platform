@@ -30,6 +30,19 @@ public record CreateProductRequest
 
     [SwaggerSchema("Whether the product is visible in the public catalog.")]
     public bool IsActive { get; init; } = true;
+
+    /// <summary>
+    /// Initial stock for the auto-created default variant. ADR 0003 / Task 27
+    /// says every product has 1..n variants; we auto-create one on POST so
+    /// downstream code (cart, orders) can always find a variant. If you
+    /// want a product to start as out-of-stock, pass <c>0</c> explicitly —
+    /// a missing value used to silently default to <c>0</c> on every POST,
+    /// which produced unsellable inventory until the admin remembered to
+    /// PUT the variant. Default <c>0</c>; non-negative.
+    /// </summary>
+    [Range(0, int.MaxValue)]
+    [SwaggerSchema("Initial stock for the auto-created default variant. Defaults to 0 if omitted.")]
+    public int InitialStock { get; init; } = 0;
 }
 
 [SwaggerSchema("Updates an existing product in the catalog.")]

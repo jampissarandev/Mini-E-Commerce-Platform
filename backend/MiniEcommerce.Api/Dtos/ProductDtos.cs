@@ -17,6 +17,15 @@ public record ProductListItem
     public string ImageUrl { get; init; } = string.Empty;
 
     public string CategoryName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Number of active variants for this product. Task 27b: the public
+    /// catalog list surfaces variant count so the grid can show "T-Shirt —
+    /// 6 options" without fetching each detail. The full variant list (size,
+    /// color, SKU, stock) is only on the detail endpoint to keep the list
+    /// payload small.
+    /// </summary>
+    public int VariantCount { get; init; }
 }
 
 /// <summary>

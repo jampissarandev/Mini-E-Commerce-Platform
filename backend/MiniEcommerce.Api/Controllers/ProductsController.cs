@@ -63,6 +63,7 @@ public class ProductsController : ControllerBase
                     .OrderBy(i => i.SortOrder)
                     .Select(i => i.Url)
                     .FirstOrDefault() ?? string.Empty,
+                VariantCount = p.Variants.Count(v => v.IsActive),
             })
             .ToListAsync(cancellationToken);
 
