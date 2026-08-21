@@ -95,7 +95,8 @@ public class CartController : ControllerBase
             }
 
             existingItem.Quantity = newQuantity;
-            existingItem.UnitPrice = variant.Product.Price;
+            // UnitPrice is a snapshot at add-time (CONTEXT.md). The price
+            // re-validation happens at checkout, not on re-add.
             cart.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
 
@@ -168,7 +169,8 @@ public class CartController : ControllerBase
         }
 
         cartItem.Quantity = request.Quantity;
-        cartItem.UnitPrice = cartItem.ProductVariant.Product.Price;
+        // UnitPrice is a snapshot at add-time (CONTEXT.md). Do not recompute
+        // on PUT — checkout re-validates against the live price.
         cart.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 

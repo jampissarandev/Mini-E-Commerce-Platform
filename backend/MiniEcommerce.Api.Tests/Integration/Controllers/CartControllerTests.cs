@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Tests.Infrastructure;
 
@@ -462,6 +463,88 @@ public class CartControllerTests : IAsyncLifetime
         var response = await client.DeleteAsync("/api/cart");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    // ─────────────── UnitPrice snapshot preservation (CONTEXT.md: snapshot at add-time) ───────────────
+
+    [Fact]
+    public async Task AddCartItem_SameVariantTwice_UnitPriceSnapshotPreserved()
+    {
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "cart-price-1@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var variantId = _variantIds[0];
+
+        // First add captures the original UnitPrice snapshot.
+        var first = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductVariantId = variantId,
+            Quantity = 1
+        });
+        var firstBody = (await first.Content.ReadFromJsonAsync<ApiResponse<CartItemDto>>(Json))!.Data!;
+        var originalPrice = firstBody.UnitPrice;
+
+        // Bump the product price directly via the DbContext to simulate an
+        // admin price change between adds. We can't easily do this via the
+        // public API as a customer, so the seam is the test DbContext.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MiniEcommerce.Api.Data.ApplicationDbContext>();
+            var product = await db.Products
+                .FirstAsync(p => p.Variants.Any(v => v.Id == variantId));
+            product.Price = originalPrice * 2;
+            await db.SaveChangesAsync();
+        }
+
+        // Re-adding the same variant must NOT overwrite the snapshot.
+        var second = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductVariantId = variantId,
+            Quantity = 1
+        });
+        var secondBody = (await second.Content.ReadFromJsonAsync<ApiResponse<CartItemDto>>(Json))!.Data!;
+
+        secondBody.UnitPrice.Should().Be(originalPrice,
+            "UnitPrice is a snapshot at add-time per CONTEXT.md — re-adding must not overwrite it");
+    }
+
+    [Fact]
+    public async Task UpdateCartItem_QuantityChanged_UnitPriceSnapshotPreserved()
+    {
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "cart-price-2@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var variantId = _variantIds[0];
+
+        // Add the item — captures the snapshot.
+        var addResponse = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductVariantId = variantId,
+            Quantity = 1
+        });
+        var added = (await addResponse.Content.ReadFromJsonAsync<ApiResponse<CartItemDto>>(Json))!.Data!;
+        var originalPrice = added.UnitPrice;
+        var cartItemId = added.Id;
+
+        // Mutate the product price.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MiniEcommerce.Api.Data.ApplicationDbContext>();
+            var product = await db.Products
+                .FirstAsync(p => p.Variants.Any(v => v.Id == variantId));
+            product.Price = originalPrice * 2;
+            await db.SaveChangesAsync();
+        }
+
+        // Update quantity — must not overwrite UnitPrice.
+        var update = await client.PutAsJsonAsync($"/api/cart/items/{cartItemId}",
+            new UpdateCartItemRequest { Quantity = 5 });
+        var updated = (await update.Content.ReadFromJsonAsync<ApiResponse<CartItemDto>>(Json))!.Data!;
+
+        updated.UnitPrice.Should().Be(originalPrice,
+            "UnitPrice is a snapshot at add-time — PUT must not recompute it from current Product.Price");
     }
 
     // ─────────────── helpers ───────────────
