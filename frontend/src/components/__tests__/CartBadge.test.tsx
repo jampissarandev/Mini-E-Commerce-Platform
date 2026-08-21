@@ -37,9 +37,9 @@ const cartWith3Items = {
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     items: [
-      { id: 1, productId: 1, productName: 'A', productSlug: 'a', imageUrl: '', unitPrice: 10, quantity: 1, subtotal: 10 },
-      { id: 2, productId: 2, productName: 'B', productSlug: 'b', imageUrl: '', unitPrice: 20, quantity: 2, subtotal: 40 },
-      { id: 3, productId: 3, productName: 'C', productSlug: 'c', imageUrl: '', unitPrice: 30, quantity: 1, subtotal: 30 },
+      { id: 1, productVariantId: 10, productName: 'A', productSlug: 'a', imageUrl: '', unitPrice: 10, quantity: 1, subtotal: 10 },
+      { id: 2, productVariantId: 11, productName: 'B', productSlug: 'b', imageUrl: '', unitPrice: 20, quantity: 2, subtotal: 40 },
+      { id: 3, productVariantId: 12, productName: 'C', productSlug: 'c', imageUrl: '', unitPrice: 30, quantity: 1, subtotal: 30 },
     ],
     total: 80,
   },
@@ -53,7 +53,7 @@ const cartWith10PlusItems = {
     updatedAt: '2026-01-01T00:00:00Z',
     items: Array.from({ length: 5 }, (_, i) => ({
       id: i + 1,
-      productId: i + 1,
+      productVariantId: 10 + i,
       productName: `Item ${i + 1}`,
       productSlug: `item-${i + 1}`,
       imageUrl: '',

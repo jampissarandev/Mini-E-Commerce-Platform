@@ -24,9 +24,11 @@ const mockCartDto = {
     items: [
       {
         id: 1,
-        productId: 1,
+        productVariantId: 10,
         productName: 'Laptop Pro',
         productSlug: 'laptop-pro',
+        size: 'M',
+        color: 'Black',
         imageUrl: '/images/laptop.jpg',
         unitPrice: 1299.99,
         quantity: 2,
@@ -41,9 +43,11 @@ const mockCartItemDto = {
   success: true,
   data: {
     id: 2,
-    productId: 2,
+    productVariantId: 11,
     productName: 'Wireless Mouse',
     productSlug: 'wireless-mouse',
+    size: null,
+    color: null,
     imageUrl: '/images/mouse.jpg',
     unitPrice: 29.99,
     quantity: 1,
@@ -82,7 +86,7 @@ describe('useAddToCart', () => {
     )
     const { result } = renderHook(() => useAddToCart(), { wrapper: createWrapper() })
 
-    result.current.mutate({ productId: 2, quantity: 1 })
+    result.current.mutate({ productVariantId: 11, quantity: 1 })
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true)

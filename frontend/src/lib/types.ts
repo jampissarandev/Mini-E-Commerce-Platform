@@ -20,6 +20,15 @@ export interface Meta {
 }
 
 // Product catalog types — mirrors backend ProductListItem / ProductDetailDto.
+export interface ProductVariantDto {
+  id: number
+  sku: string
+  size?: string | null
+  color?: string | null
+  stock: number
+  isActive: boolean
+}
+
 export interface ProductListItem {
   id: number
   name: string
@@ -27,6 +36,7 @@ export interface ProductListItem {
   price: number
   imageUrl: string
   categoryName: string
+  variantCount: number
 }
 
 export interface ProductDetailDto {
@@ -35,10 +45,10 @@ export interface ProductDetailDto {
   slug: string
   description: string
   price: number
-  stock: number
   createdAt: string
   category: ProductCategoryDto
   images: ProductImageDto[]
+  variants: ProductVariantDto[]
 }
 
 export interface ProductCategoryDto {
@@ -71,9 +81,11 @@ export interface MockPaymentModeDto {
 // Cart types — mirrors backend CartDto / CartItemDto.
 export interface CartItemDto {
   id: number
-  productId: number
+  productVariantId: number
   productName: string
   productSlug: string
+  size?: string | null
+  color?: string | null
   imageUrl: string
   unitPrice: number
   quantity: number
@@ -89,7 +101,7 @@ export interface CartDto {
 }
 
 export interface AddCartItemRequest {
-  productId: number
+  productVariantId: number
   quantity: number
 }
 
@@ -172,7 +184,7 @@ export interface CheckoutRequest {
 
 export interface OrderItemDto {
   id: number
-  productId: number
+  productVariantId: number
   productName: string
   unitPrice: number
   quantity: number

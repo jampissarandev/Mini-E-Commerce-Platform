@@ -167,7 +167,7 @@ export const handlers = [
         items: [
           {
             id: 1,
-            productId: 1,
+            productVariantId: 1,
             productName: 'Laptop',
             unitPrice: 100,
             quantity: 1,

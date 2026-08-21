@@ -20,8 +20,8 @@ function createWrapper() {
 const mockProductsResponse = {
   success: true,
   data: [
-    { id: 1, name: 'Laptop', slug: 'laptop', price: 999.99, imageUrl: '/images/laptop.jpg', categoryName: 'Electronics' },
-    { id: 2, name: 'Headphones', slug: 'headphones', price: 49.99, imageUrl: '/images/headphones.jpg', categoryName: 'Electronics' },
+    { id: 1, name: 'Laptop', slug: 'laptop', price: 999.99, imageUrl: '/images/laptop.jpg', categoryName: 'Electronics', variantCount: 2 },
+    { id: 2, name: 'Headphones', slug: 'headphones', price: 49.99, imageUrl: '/images/headphones.jpg', categoryName: 'Electronics', variantCount: 1 },
   ],
   meta: { page: 1, pageSize: 10, totalCount: 2, totalPages: 1 },
 }
@@ -34,10 +34,10 @@ const mockProductDetailResponse = {
     slug: 'laptop',
     description: 'A powerful laptop',
     price: 999.99,
-    stock: 10,
     createdAt: '2026-01-01T00:00:00Z',
     category: { id: 1, name: 'Electronics', slug: 'electronics' },
     images: [{ id: 1, url: '/images/laptop.jpg', sortOrder: 0 }],
+    variants: [{ id: 10, sku: 'SKU-1', size: 'M', color: 'Black', stock: 10, isActive: true }],
   },
 }
 
@@ -133,7 +133,7 @@ describe('useProduct', () => {
     })
 
     expect(result.current.data?.data?.name).toBe('Laptop')
-    expect(result.current.data?.data?.stock).toBe(10)
+    expect(result.current.data?.data?.variants).toHaveLength(1)
   })
 
   it('does not fetch when id is 0', () => {

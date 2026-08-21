@@ -29,12 +29,15 @@ const mockProduct = {
     slug: 'laptop-pro',
     description: 'A powerful laptop for professionals.',
     price: 1299.99,
-    stock: 10,
     createdAt: '2026-01-01T00:00:00Z',
     category: { id: 1, name: 'Electronics', slug: 'electronics' },
     images: [
       { id: 1, url: '/images/laptop1.jpg', sortOrder: 0 },
       { id: 2, url: '/images/laptop2.jpg', sortOrder: 1 },
+    ],
+    variants: [
+      { id: 10, sku: 'LP-M-BLK', size: 'M', color: 'Black', stock: 10, isActive: true },
+      { id: 11, sku: 'LP-L-WHT', size: 'L', color: 'White', stock: 0, isActive: true },
     ],
   },
 }

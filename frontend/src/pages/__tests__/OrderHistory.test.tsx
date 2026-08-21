@@ -22,7 +22,7 @@ const mockOrders = [
     shippingPhone: '+1-555-0100',
     createdAt: '2026-07-04T10:00:00Z',
     items: [
-      { id: 1, productId: 1, productName: 'Laptop Pro', unitPrice: 1299.99, quantity: 1, subtotal: 1299.99 },
+      { id: 1, productVariantId: 10, productName: 'Laptop Pro', unitPrice: 1299.99, quantity: 1, subtotal: 1299.99 },
     ],
   },
   {
@@ -39,7 +39,7 @@ const mockOrders = [
     shippingPhone: '+1-555-0200',
     createdAt: '2026-07-03T15:00:00Z',
     items: [
-      { id: 2, productId: 5, productName: 'Wireless Mouse', unitPrice: 49.99, quantity: 1, subtotal: 49.99 },
+      { id: 2, productVariantId: 11, productName: 'Wireless Mouse', unitPrice: 49.99, quantity: 1, subtotal: 49.99 },
     ],
   },
 ]

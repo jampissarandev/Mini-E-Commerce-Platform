@@ -12,6 +12,7 @@ const mockProduct: ProductListItem = {
   price: 1299.99,
   imageUrl: '/images/laptop.jpg',
   categoryName: 'Electronics',
+  variantCount: 1,
 }
 
 function renderCard(product: ProductListItem = mockProduct) {
@@ -62,5 +63,17 @@ describe('ProductCard', () => {
     renderCard({ ...mockProduct } as ProductListItem)
     // ProductListItem doesn't have stock, so no badge shown by default
     expect(screen.queryByText(/out of stock/i)).not.toBeInTheDocument()
+  })
+
+  it('shows variant count when product has multiple variants', () => {
+    renderCard({ ...mockProduct, variantCount: 3 })
+    expect(screen.getByText(/3 variants/i)).toBeInTheDocument()
+    expect(screen.getByText(/view options/i)).toBeInTheDocument()
+  })
+
+  it('does not show variant count when only one variant', () => {
+    renderCard({ ...mockProduct, variantCount: 1 })
+    expect(screen.queryByText(/variants/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/view product/i)).toBeInTheDocument()
   })
 })

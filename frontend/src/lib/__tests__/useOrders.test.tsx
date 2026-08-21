@@ -31,7 +31,7 @@ const mockOrderDto = {
   items: [
     {
       id: 1,
-      productId: 1,
+      productVariantId: 10,
       productName: 'Laptop Pro',
       unitPrice: 1299.99,
       quantity: 1,

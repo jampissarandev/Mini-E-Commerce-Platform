@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useProduct } from '@/lib/useProducts'
 import { useAddToCart } from '@/lib/useCart'
 import { Button } from '@/components/ui/button'
+import { VariantPicker } from '@/components/VariantPicker'
 import { ArrowLeft, ShoppingCart, Plus, Minus, Check } from 'lucide-react'
 
 function formatPrice(price: number): string {
@@ -17,10 +18,33 @@ export function ProductDetail() {
   const productId = Number(id)
   const [quantity, setQuantity] = useState(1)
   const [justAdded, setJustAdded] = useState(false)
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null)
 
   const { data, isLoading, isError } = useProduct(productId)
   const product = data?.data
   const addToCart = useAddToCart()
+
+  // Auto-select the first in-stock variant when product loads / changes.
+  // UseEffect must be placed after the isLoading/isError early returns are
+  // handled via a data memo, so we compute the preferred variant synchronously
+  // and fall back to an effect for subsequent product switches.
+  const preferredVariantId = (() => {
+    const variants = product?.variants ?? []
+    if (variants.length === 0) return null
+    const active = variants.filter((v) => v.isActive)
+    return (active.find((v) => v.stock > 0) ?? active[0] ?? null)?.id ?? null
+  })()
+
+  useEffect(() => {
+    if (preferredVariantId !== null) {
+      setSelectedVariantId((prev) => (prev === null ? preferredVariantId : prev))
+    }
+  }, [preferredVariantId])
+
+  // Keep quantity in sync when product changes
+  useEffect(() => {
+    if (product) setQuantity(1)
+  }, [product?.id])
 
   if (isLoading) {
     return (
@@ -95,69 +119,100 @@ export function ProductDetail() {
             <p className="text-muted-foreground leading-relaxed">{product.description}</p>
           </div>
 
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">
-              Stock: <span className="font-medium text-foreground">{product.stock} in stock</span>
-            </p>
-          </div>
-
-          {/* Add to Cart */}
-          {product.stock > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium">Quantity:</span>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon-xs"
-                    aria-label="Decrease quantity"
-                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    disabled={quantity <= 1}
-                  >
-                    <Minus className="h-3 w-3" />
-                  </Button>
-                  <span className="w-10 text-center text-sm font-medium">{quantity}</span>
-                  <Button
-                    variant="outline"
-                    size="icon-xs"
-                    aria-label="Increase quantity"
-                    onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))}
-                    disabled={quantity >= product.stock}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-              <Button
-                size="lg"
-                className="w-full"
-                onClick={() => {
-                  addToCart.mutate(
-                    { productId: product.id, quantity },
-                    {
-                      onSuccess: () => {
-                        setJustAdded(true)
-                        setTimeout(() => setJustAdded(false), 2000)
-                      },
-                    },
-                  )
-                }}
-                disabled={addToCart.isPending}
-              >
-                {justAdded ? (
-                  <>
-                    <Check className="mr-2 h-4 w-4" />
-                    Added to Cart!
-                  </>
-                ) : (
-                  <>
-                    <ShoppingCart className="mr-2 h-4 w-4" />
-                    {addToCart.isPending ? 'Adding...' : 'Add to Cart'}
-                  </>
-                )}
-              </Button>
-            </div>
+          {/* Variant picker — ADR 0003: stock lives on the variant */}
+          {product.variants.length > 0 && (
+            <VariantPicker
+              variants={product.variants}
+              selectedId={selectedVariantId}
+              onSelect={(id) => {
+                setSelectedVariantId(id)
+                setQuantity(1)
+              }}
+            />
           )}
+
+          {/* Stock for selected variant — also render synchronously on first paint
+              by falling back to preferredVariantId when selectedVariantId hasn't settled yet */}
+          {(() => {
+            const effectiveId = selectedVariantId ?? preferredVariantId
+            const selected = product.variants.find((v) => v.id === effectiveId)
+            const stock = selected?.stock ?? 0
+            const outOfStock = product.variants.every((v) => !v.isActive || v.stock === 0)
+            if (outOfStock) {
+              return <p className="text-sm font-medium text-destructive">Out of stock</p>
+            }
+            if (!selected) return null
+            return (
+              <p className="text-sm text-muted-foreground">
+                Stock: <span className="font-medium text-foreground">{stock} in stock</span>
+              </p>
+            )
+          })()}
+
+          {/* Add to Cart — requires a selected in-stock variant */}
+          {(() => {
+            const selected = product.variants.find((v) => v.id === selectedVariantId)
+            const stock = selected?.stock ?? 0
+            const canAdd = selected !== undefined && stock > 0
+            if (!canAdd) return null
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium">Quantity:</span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon-xs"
+                      aria-label="Decrease quantity"
+                      onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                      disabled={quantity <= 1}
+                    >
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <span className="w-10 text-center text-sm font-medium">{quantity}</span>
+                    <Button
+                      variant="outline"
+                      size="icon-xs"
+                      aria-label="Increase quantity"
+                      onClick={() => setQuantity((q) => Math.min(stock, q + 1))}
+                      disabled={quantity >= stock}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                <Button
+                  size="lg"
+                  className="w-full"
+                  onClick={() => {
+                    if (selectedVariantId == null) return
+                    addToCart.mutate(
+                      { productVariantId: selectedVariantId, quantity },
+                      {
+                        onSuccess: () => {
+                          setJustAdded(true)
+                          setTimeout(() => setJustAdded(false), 2000)
+                        },
+                      },
+                    )
+                  }}
+                  disabled={addToCart.isPending || selectedVariantId == null}
+                >
+                  {justAdded ? (
+                    <>
+                      <Check className="mr-2 h-4 w-4" />
+                      Added to Cart!
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart className="mr-2 h-4 w-4" />
+                      {addToCart.isPending ? 'Adding...' : 'Add to Cart'}
+                    </>
+                  )}
+                </Button>
+              </div>
+            )
+          })()}
         </div>
       </div>
     </div>

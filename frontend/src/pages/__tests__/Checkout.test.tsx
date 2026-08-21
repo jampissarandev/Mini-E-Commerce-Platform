@@ -16,9 +16,11 @@ const mockCartDto = {
     items: [
       {
         id: 1,
-        productId: 1,
+        productVariantId: 10,
         productName: 'Laptop Pro',
         productSlug: 'laptop-pro',
+        size: 'M',
+        color: 'Black',
         imageUrl: '/images/laptop.jpg',
         unitPrice: 1299.99,
         quantity: 2,
@@ -40,7 +42,7 @@ const mockOrderDto = {
   items: [
     {
       id: 1,
-      productId: 1,
+      productVariantId: 10,
       productName: 'Laptop Pro',
       unitPrice: 1299.99,
       quantity: 2,

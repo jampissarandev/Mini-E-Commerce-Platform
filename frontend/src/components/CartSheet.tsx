@@ -86,12 +86,17 @@ export function CartSheet({ open, onOpenChange }: CartSheetProps) {
                   <div className="flex flex-1 flex-col justify-between min-w-0">
                     <div className="min-w-0">
                       <Link
-                        to={`/products/${item.productId}`}
+                        to={`/products/${item.productSlug}`}
                         className="text-sm font-medium leading-tight truncate block hover:underline"
                         onClick={() => onOpenChange(false)}
                       >
                         {item.productName}
                       </Link>
+                      {(item.size || item.color) && (
+                        <p className="text-xs text-muted-foreground">
+                          {[item.size, item.color].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
                       <p className="text-sm text-muted-foreground">
                         {formatPrice(item.unitPrice)}
                       </p>

@@ -77,11 +77,16 @@ export function Cart() {
               <div className="flex flex-1 flex-col justify-between min-w-0">
                 <div className="min-w-0">
                   <Link
-                    to={`/products/${item.productId}`}
+                    to={`/products/${item.productSlug}`}
                     className="text-sm font-semibold leading-tight hover:underline"
                   >
                     {item.productName}
                   </Link>
+                  {(item.size || item.color) && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {[item.size, item.color].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground mt-0.5">
                     {formatPrice(item.unitPrice)} each
                   </p>

@@ -23,7 +23,7 @@ const mockOrderDto = {
   items: [
     {
       id: 1,
-      productId: 1,
+      productVariantId: 10,
       productName: 'Laptop Pro',
       unitPrice: 1299.99,
       quantity: 2,
@@ -31,7 +31,7 @@ const mockOrderDto = {
     },
     {
       id: 2,
-      productId: 5,
+      productVariantId: 11,
       productName: 'Wireless Mouse',
       unitPrice: 49.99,
       quantity: 1,

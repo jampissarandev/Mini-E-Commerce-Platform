@@ -29,9 +29,11 @@ const mockCartDto = {
     items: [
       {
         id: 1,
-        productId: 1,
+        productVariantId: 10,
         productName: 'Laptop Pro',
         productSlug: 'laptop-pro',
+        size: 'M',
+        color: 'Black',
         imageUrl: '/images/laptop.jpg',
         unitPrice: 1299.99,
         quantity: 2,
@@ -39,9 +41,11 @@ const mockCartDto = {
       },
       {
         id: 2,
-        productId: 2,
+        productVariantId: 11,
         productName: 'Wireless Mouse',
         productSlug: 'wireless-mouse',
+        size: null,
+        color: null,
         imageUrl: '/images/mouse.jpg',
         unitPrice: 29.99,
         quantity: 1,
