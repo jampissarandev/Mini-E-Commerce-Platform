@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useProduct } from '@/lib/useProducts'
 import { useAddToCart } from '@/lib/useCart'
@@ -19,15 +19,18 @@ export function ProductDetail() {
   const [quantity, setQuantity] = useState(1)
   const [justAdded, setJustAdded] = useState(false)
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null)
+  // Track the last product we initialised selection for so we can reset on
+  // navigation to a different product without using useEffect (which would
+  // trigger the react-hooks/set-state-in-effect lint rule).
+  const [prevProductId, setPrevProductId] = useState<number | null>(null)
 
   const { data, isLoading, isError } = useProduct(productId)
   const product = data?.data
   const addToCart = useAddToCart()
 
-  // Auto-select the first in-stock variant when product loads / changes.
-  // UseEffect must be placed after the isLoading/isError early returns are
-  // handled via a data memo, so we compute the preferred variant synchronously
-  // and fall back to an effect for subsequent product switches.
+  // Derive the preferred variant (first in-stock, else first active) from the
+  // current product. Computed synchronously on every render so it's available
+  // on first paint of the Stock line.
   const preferredVariantId = (() => {
     const variants = product?.variants ?? []
     if (variants.length === 0) return null
@@ -35,16 +38,16 @@ export function ProductDetail() {
     return (active.find((v) => v.stock > 0) ?? active[0] ?? null)?.id ?? null
   })()
 
-  useEffect(() => {
-    if (preferredVariantId !== null) {
-      setSelectedVariantId((prev) => (prev === null ? preferredVariantId : prev))
-    }
-  }, [preferredVariantId])
-
-  // Keep quantity in sync when product changes
-  useEffect(() => {
-    if (product) setQuantity(1)
-  }, [product?.id])
+  // Reset variant selection and quantity when navigating to a different
+  // product. This is the React-blessed "set state during render" pattern for
+  // resetting state when a prop changes
+  // (https://react.dev/learn/you-might-not-need-an-effect#resetting-all-state-when-a-prop-changes).
+  // Must run before any early returns below so it applies on every render.
+  if (product?.id != null && product.id !== prevProductId) {
+    setPrevProductId(product.id)
+    setSelectedVariantId(preferredVariantId)
+    setQuantity(1)
+  }
 
   if (isLoading) {
     return (

@@ -87,13 +87,17 @@ describe('ProductDetail page', () => {
     })
   })
 
-  it('renders stock information', async () => {
+  it('renders stock information for the auto-selected variant', async () => {
     server.use(
       http.get(/\/api\/products\/1$/, () => HttpResponse.json(mockProduct)),
     )
     renderDetail()
+    // Once the auto-selected variant settles, the Stock line ("Stock: 10 in
+    // stock") AND VariantPicker's "Selected: <sku> — 10 in stock" line both
+    // render the same stock figure — pin both so a regression that hides one
+    // is caught.
     await waitFor(() => {
-      expect(screen.getByText(/10 in stock/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/10 in stock/i)).toHaveLength(2)
     })
   })
 
