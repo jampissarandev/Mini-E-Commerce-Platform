@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MiniEcommerce.Api.Data;
 using MiniEcommerce.Api.Dtos;
+using MiniEcommerce.Api.Interfaces;
 using MiniEcommerce.Api.Models;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -16,11 +17,16 @@ public class AddressesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IAddressBookService _addressBook;
 
-    public AddressesController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+    public AddressesController(
+        ApplicationDbContext context,
+        UserManager<ApplicationUser> userManager,
+        IAddressBookService addressBook)
     {
         _context = context;
         _userManager = userManager;
+        _addressBook = addressBook;
     }
 
     /// <summary>
@@ -57,24 +63,15 @@ public class AddressesController : ControllerBase
     {
         var customerId = _userManager.GetUserId(User)!;
 
-        var hasAddresses = await _context.Addresses
-            .AnyAsync(a => a.CustomerId == customerId, cancellationToken);
-
-        var address = new Address
-        {
-            CustomerId = customerId,
-            FullName = request.FullName,
-            Street = request.Street,
-            City = request.City,
-            PostalCode = request.PostalCode,
-            Country = request.Country,
-            Phone = request.Phone,
-            IsDefault = !hasAddresses, // first address is default
-            CreatedAt = DateTime.UtcNow
-        };
-
-        _context.Addresses.Add(address);
-        await _context.SaveChangesAsync(cancellationToken);
+        var address = await _addressBook.SaveSnapshotAsync(
+            customerId,
+            request.FullName,
+            request.Street,
+            request.City,
+            request.PostalCode,
+            request.Country,
+            request.Phone,
+            cancellationToken);
 
         return StatusCode(StatusCodes.Status201Created,
             ApiResponse<AddressDto>.Ok(MapToDto(address)));

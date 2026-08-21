@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -18,7 +18,7 @@ import { useCart } from '@/lib/useCart'
 import { useCheckout } from '@/lib/useOrders'
 import { usePaymentMode } from '@/lib/usePaymentMode'
 import { useAuthStore } from '@/lib/auth-store'
-import { useAddresses } from '@/lib/useAddresses'
+import { useAddresses, useDefaultAddress } from '@/lib/useAddresses'
 import { checkoutSchema, type CheckoutValues } from '@/lib/schemas/checkout'
 
 function formatPrice(price: number): string {
@@ -59,23 +59,6 @@ export function Checkout() {
     }
   }, [cartLoading, items.length, navigate])
 
-  // ADR 0004: pre-fill from the default address on first load. The
-  // useDefaultAddress hook is intentionally unused here — we also need
-  // the full address list for the picker, so we read from addressesData
-  // and pick the default once (guarded by the addressesLoaded flag so
-  // the user's explicit radio choice later still wins).
-  const addressesLoaded = !!addressesData?.data
-  useEffect(() => {
-    if (!addressesLoaded) return
-    const def = addresses.find((a) => a.isDefault)
-    if (!def) return
-    if (selectedAddressId === def.id) return // already pre-filled
-    handleAddressChange(String(def.id))
-    // Run once when the address list first arrives. Subsequent changes
-    // are driven by user input via the radio handler.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addressesLoaded])
-
   const form = useForm<CheckoutValues>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
@@ -89,27 +72,48 @@ export function Checkout() {
     },
   })
 
-  // When the user picks a saved address, fill the form fields
-  function handleAddressChange(value: string) {
-    if (value === 'new') {
-      setSelectedAddressId('new')
-      form.setValue('addressId', undefined)
-      form.reset({ fullName, street: '', city: '', postalCode: '', country: '', phone: '', saveAddress: false })
-    } else {
-      const addrId = Number(value)
-      setSelectedAddressId(addrId)
-      const addr = addresses.find((a) => a.id === addrId)
-      if (addr) {
-        form.setValue('addressId', addrId)
-        form.setValue('fullName', addr.fullName)
-        form.setValue('street', addr.street)
-        form.setValue('city', addr.city)
-        form.setValue('postalCode', addr.postalCode)
-        form.setValue('country', addr.country)
-        form.setValue('phone', addr.phone)
+  const defaultAddress = useDefaultAddress()
+  const addressesLoaded = !!addressesData?.data
+
+  const handleAddressChange = useCallback(
+    (value: string) => {
+      if (value === 'new') {
+        setSelectedAddressId('new')
+        form.setValue('addressId', undefined)
+        form.reset({
+          fullName,
+          street: '',
+          city: '',
+          postalCode: '',
+          country: '',
+          phone: '',
+          saveAddress: false,
+        })
+      } else {
+        const addrId = Number(value)
+        setSelectedAddressId(addrId)
+        const addr = addresses.find((a) => a.id === addrId)
+        if (addr) {
+          form.setValue('addressId', addrId)
+          form.setValue('fullName', addr.fullName)
+          form.setValue('street', addr.street)
+          form.setValue('city', addr.city)
+          form.setValue('postalCode', addr.postalCode)
+          form.setValue('country', addr.country)
+          form.setValue('phone', addr.phone)
+        }
       }
-    }
-  }
+    },
+    [addresses, form, fullName],
+  )
+
+  // ADR 0004: pre-fill from the default address on first load.
+  useEffect(() => {
+    if (!addressesLoaded) return
+    if (!defaultAddress) return
+    if (selectedAddressId === defaultAddress.id) return
+    handleAddressChange(String(defaultAddress.id))
+  }, [addressesLoaded, defaultAddress, selectedAddressId, handleAddressChange])
 
   async function onSubmit(values: CheckoutValues) {
     setServerError(null)

@@ -22,6 +22,7 @@ public static class ServiceCollectionExtensions
 
         // Services
         services.AddScoped<IImageStorage, LocalImageStorage>();
+        services.AddScoped<IAddressBookService, AddressBookService>();
 
         // Payment: bind failure-injection options and register the mock service.
         // In production, Mode defaults to AlwaysSucceed so checkout never fails

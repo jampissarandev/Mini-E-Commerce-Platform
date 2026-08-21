@@ -21,17 +21,20 @@ public class OrdersController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IPaymentService _paymentService;
+    private readonly IAddressBookService _addressBook;
     private readonly ShippingOptions _shippingOptions;
 
     public OrdersController(
         ApplicationDbContext context,
         UserManager<ApplicationUser> userManager,
         IPaymentService paymentService,
+        IAddressBookService addressBook,
         IOptions<ShippingOptions> shippingOptions)
     {
         _context = context;
         _userManager = userManager;
         _paymentService = paymentService;
+        _addressBook = addressBook;
         _shippingOptions = shippingOptions.Value;
     }
 
@@ -246,27 +249,19 @@ public class OrdersController : ControllerBase
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // ADR 0004 'Save this address' checkbox: when the customer typed
-        // a one-off address (AddressId is null) and asked to save it,
-        // persist the shipping snapshot to the address book. First
-        // address auto-defaults (matches AddressesController.CreateAddress).
+        // ADR 0004 'Save this address' checkbox — delegated to the
+        // single source of truth for the single-default invariant.
         if (request.SaveAddress && !request.AddressId.HasValue)
         {
-            var hasAddresses = await _context.Addresses
-                .AnyAsync(a => a.CustomerId == customerId, cancellationToken);
-            _context.Addresses.Add(new Address
-            {
-                CustomerId = customerId,
-                FullName = shippingFullName,
-                Street = shippingStreet,
-                City = shippingCity,
-                PostalCode = shippingPostalCode,
-                Country = shippingCountry,
-                Phone = shippingPhone,
-                IsDefault = !hasAddresses,
-                CreatedAt = DateTime.UtcNow
-            });
-            await _context.SaveChangesAsync(cancellationToken);
+            await _addressBook.SaveSnapshotAsync(
+                customerId,
+                shippingFullName,
+                shippingStreet,
+                shippingCity,
+                shippingPostalCode,
+                shippingCountry,
+                shippingPhone,
+                cancellationToken);
         }
 
         var dto = MapOrderToDto(order);
