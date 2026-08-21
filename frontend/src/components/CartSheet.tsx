@@ -86,7 +86,7 @@ export function CartSheet({ open, onOpenChange }: CartSheetProps) {
                   <div className="flex flex-1 flex-col justify-between min-w-0">
                     <div className="min-w-0">
                       <Link
-                        to={`/products/${item.productSlug}`}
+                        to={`/products/${item.productId}`}
                         className="text-sm font-medium leading-tight truncate block hover:underline"
                         onClick={() => onOpenChange(false)}
                       >

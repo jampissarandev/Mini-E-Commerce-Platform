@@ -24,6 +24,7 @@ const mockCartDto = {
     items: [
       {
         id: 1,
+        productId: 1,
         productVariantId: 10,
         productName: 'Laptop Pro',
         productSlug: 'laptop-pro',
@@ -43,6 +44,7 @@ const mockCartItemDto = {
   success: true,
   data: {
     id: 2,
+    productId: 2,
     productVariantId: 11,
     productName: 'Wireless Mouse',
     productSlug: 'wireless-mouse',

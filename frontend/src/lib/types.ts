@@ -81,6 +81,7 @@ export interface MockPaymentModeDto {
 // Cart types — mirrors backend CartDto / CartItemDto.
 export interface CartItemDto {
   id: number
+  productId: number
   productVariantId: number
   productName: string
   productSlug: string

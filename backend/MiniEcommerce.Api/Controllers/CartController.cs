@@ -275,6 +275,7 @@ public class CartController : ControllerBase
             Items = items.Select(ci => new CartItemDto
             {
                 Id = ci.Id,
+                ProductId = ci.ProductVariant.Product.Id,
                 ProductVariantId = ci.ProductVariantId,
                 ProductName = ci.ProductVariant.Product.Name,
                 ProductSlug = ci.ProductVariant.Product.Slug,
@@ -292,6 +293,7 @@ public class CartController : ControllerBase
         return new CartItemDto
         {
             Id = cartItem.Id,
+            ProductId = variant.Product.Id,
             ProductVariantId = cartItem.ProductVariantId,
             ProductName = variant.Product.Name,
             ProductSlug = variant.Product.Slug,

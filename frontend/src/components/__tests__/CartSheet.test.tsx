@@ -29,6 +29,7 @@ const mockCartDto = {
     items: [
       {
         id: 1,
+        productId: 1,
         productVariantId: 10,
         productName: 'Laptop Pro',
         productSlug: 'laptop-pro',
@@ -41,6 +42,7 @@ const mockCartDto = {
       },
       {
         id: 2,
+        productId: 2,
         productVariantId: 11,
         productName: 'Wireless Mouse',
         productSlug: 'wireless-mouse',
@@ -150,5 +152,20 @@ describe('CartSheet', () => {
     const closeButton = screen.getByRole('button', { name: /close/i })
     await userEvent.click(closeButton)
     expect(openState).toBe(false)
+  })
+
+  it('links each cart item to /products/<id> using the numeric product id, not the slug', async () => {
+    // Regression for the 27d slug-in-route defect: the cart link passed
+    // item.productSlug into /products/:id, which ProductDetail.tsx Number()-
+    // coerces to NaN, breaking navigation from the cart to product detail.
+    // The product slug ("laptop-pro") must NOT appear in the link href.
+    server.use(
+      http.get(/\/api\/cart$/, () => HttpResponse.json(mockCartDto)),
+    )
+    renderSheet()
+    const laptopLink = await screen.findByRole('link', { name: 'Laptop Pro' })
+    const mouseLink = screen.getByRole('link', { name: 'Wireless Mouse' })
+    expect(laptopLink).toHaveAttribute('href', '/products/1')
+    expect(mouseLink).toHaveAttribute('href', '/products/2')
   })
 })

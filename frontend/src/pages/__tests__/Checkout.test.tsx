@@ -16,6 +16,7 @@ const mockCartDto = {
     items: [
       {
         id: 1,
+        productId: 1,
         productVariantId: 10,
         productName: 'Laptop Pro',
         productSlug: 'laptop-pro',

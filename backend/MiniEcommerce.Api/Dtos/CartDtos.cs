@@ -51,6 +51,9 @@ public record CartItemDto
     [SwaggerSchema("Cart item id.")]
     public int Id { get; init; }
 
+    [SwaggerSchema("Id of the referenced product (parent of the variant).")]
+    public int ProductId { get; init; }
+
     [SwaggerSchema("Id of the referenced product variant.")]
     public int ProductVariantId { get; init; }
 
