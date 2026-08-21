@@ -97,8 +97,13 @@ public class AdminDashboardControllerTests : IAsyncLifetime
             .FirstAsync();
         var expectedCustomers = await ctx.UserRoles.CountAsync(ur => ur.RoleId == customerRoleId);
         var expectedProducts = await ctx.Products.CountAsync();
-        var expectedLowStock = await ctx.Products
-            .CountAsync(p => p.Stock <= AdminDashboardController.DefaultLowStockThreshold);
+        // ADR 0003: stock lives on ProductVariant, not Product.
+        // Compute in-memory to match the controller's Sum(v=>v.Stock) filter.
+        var allProducts = await ctx.Products
+            .Include(p => p.Variants)
+            .ToListAsync();
+        var expectedLowStock = allProducts
+            .Count(p => p.Variants.Where(v => v.IsActive).Sum(v => v.Stock) <= AdminDashboardController.DefaultLowStockThreshold);
 
         body.Data!.TotalOrders.Should().Be(expectedOrders);
         body.Data.TotalRevenue.Should().Be(expectedRevenue);
@@ -310,13 +315,13 @@ public class AdminDashboardControllerTests : IAsyncLifetime
     {
         var client = _factory.CreateClient();
 
-        // Set three products to 5 / 10 / 11 stock.
+        // Set three variants to 5 / 10 / 11 stock (ADR 0003: stock lives on ProductVariant).
         using (var ctx = _factory.CreateDbContext())
         {
-            var products = await ctx.Products.OrderBy(p => p.Id).Take(3).ToListAsync();
-            products[0].Stock = 5;
-            products[1].Stock = 10;
-            products[2].Stock = 11;
+            var variants = await ctx.ProductVariants.OrderBy(v => v.Id).Take(3).ToListAsync();
+            variants[0].Stock = 5;
+            variants[1].Stock = 10;
+            variants[2].Stock = 11;
             await ctx.SaveChangesAsync();
         }
 
@@ -340,9 +345,9 @@ public class AdminDashboardControllerTests : IAsyncLifetime
 
         using (var ctx = _factory.CreateDbContext())
         {
-            var products = await ctx.Products.OrderBy(p => p.Id).Take(2).ToListAsync();
-            products[0].Stock = 0;
-            products[1].Stock = 5;
+            var variants = await ctx.ProductVariants.OrderBy(v => v.Id).Take(2).ToListAsync();
+            variants[0].Stock = 0;
+            variants[1].Stock = 5;
             await ctx.SaveChangesAsync();
         }
 
@@ -365,15 +370,15 @@ public class AdminDashboardControllerTests : IAsyncLifetime
     /// </summary>
     private async Task<int> AddToCartAndCheckout(HttpClient client, string fullName = "Test Customer")
     {
-        int productId;
+        int productVariantId;
         using (var ctx = _factory.CreateDbContext())
         {
-            productId = await ctx.Products.OrderBy(p => p.Id).Select(p => p.Id).FirstAsync();
+            productVariantId = await ctx.ProductVariants.OrderBy(v => v.Id).Select(v => v.Id).FirstAsync();
         }
 
         await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = productId,
+            ProductVariantId = productVariantId,
             Quantity = 1
         });
 
@@ -454,7 +459,10 @@ public class AdminDashboardControllerTests : IAsyncLifetime
 
         using var ctx = _factory.CreateDbContext();
         var user = await ctx.Users.FirstAsync(u => u.Email == email);
-        var product = await ctx.Products.OrderBy(p => p.Id).FirstAsync();
+        // ADR 0003: OrderItem references ProductVariant, not Product.
+        var variant = await ctx.ProductVariants
+            .Include(v => v.Product)
+            .OrderBy(v => v.Id).FirstAsync();
 
         var order = new Order
         {
@@ -477,8 +485,8 @@ public class AdminDashboardControllerTests : IAsyncLifetime
         ctx.OrderItems.Add(new OrderItem
         {
             OrderId = order.Id,
-            ProductId = product.Id,
-            ProductName = product.Name,
+            ProductVariantId = variant.Id,
+            ProductName = variant.Product.Name,
             UnitPrice = total,
             Quantity = 1,
         });

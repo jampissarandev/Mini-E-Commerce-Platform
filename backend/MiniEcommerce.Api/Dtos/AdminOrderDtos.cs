@@ -113,8 +113,8 @@ public record AdminOrderItemDto
     [SwaggerSchema("Order item id.")]
     public int Id { get; init; }
 
-    [SwaggerSchema("Id of the referenced product.")]
-    public int ProductId { get; init; }
+    [SwaggerSchema("Id of the referenced product variant (ADR 0003).")]
+    public int ProductVariantId { get; init; }
 
     [SwaggerSchema("Product name snapshot at order time.")]
     public string ProductName { get; init; } = string.Empty;

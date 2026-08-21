@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Tests.Infrastructure;
 
@@ -26,6 +27,7 @@ public class CartControllerTests : IAsyncLifetime
     // the InMemory provider's auto-increment counter may not reset to 1
     // across test class boundaries.
     private int[] _productIds = [];
+    private int[] _variantIds = [];
 
     public CartControllerTests(ApiFactory factory) => _factory = factory;
 
@@ -34,6 +36,7 @@ public class CartControllerTests : IAsyncLifetime
         await _factory.ResetDatabaseAsync();
         await _factory.SeedCatalogDataAsync();
         _productIds = await GetSeededProductIdsAsync();
+        _variantIds = await GetSeededVariantIdsAsync();
     }
     public Task DisposeAsync() => Task.CompletedTask;
 
@@ -74,11 +77,11 @@ public class CartControllerTests : IAsyncLifetime
         var token = await RegisterAndLoginAsync(client, "cart-user-2@example.com");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var productId = _productIds[0];
+        var variantId = _variantIds[0];
         // Add an item first
         await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = productId,
+            ProductVariantId = variantId,
             Quantity = 2
         });
 
@@ -87,7 +90,7 @@ public class CartControllerTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<ApiResponse<CartDto>>(Json);
         body!.Data!.Items.Should().HaveCount(1);
-        body.Data.Items[0].ProductId.Should().Be(productId);
+        body.Data.Items[0].ProductVariantId.Should().Be(variantId);
         body.Data.Items[0].Quantity.Should().Be(2);
     }
 
@@ -100,7 +103,7 @@ public class CartControllerTests : IAsyncLifetime
 
         var response = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = 1,
+            ProductVariantId = 1,
             Quantity = 1
         });
 
@@ -114,10 +117,10 @@ public class CartControllerTests : IAsyncLifetime
         var token = await RegisterAndLoginAsync(client, "cart-add-1@example.com");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var productId = _productIds[0];
+        var variantId = _variantIds[0];
         var response = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = productId,
+            ProductVariantId = variantId,
             Quantity = 3
         });
 
@@ -126,7 +129,7 @@ public class CartControllerTests : IAsyncLifetime
         body.Should().NotBeNull();
         body!.Success.Should().BeTrue();
         body.Data.Should().NotBeNull();
-        body.Data!.ProductId.Should().Be(productId);
+        body.Data!.ProductVariantId.Should().Be(variantId);
         body.Data.Quantity.Should().Be(3);
         body.Data.UnitPrice.Should().BeGreaterThan(0);
         body.Data.ProductName.Should().NotBeNullOrEmpty();
@@ -139,15 +142,15 @@ public class CartControllerTests : IAsyncLifetime
         var token = await RegisterAndLoginAsync(client, "cart-add-2@example.com");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var productId = _productIds[0];
+        var variantId = _variantIds[0];
         await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = productId,
+            ProductVariantId = variantId,
             Quantity = 2
         });
         var response = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = productId,
+            ProductVariantId = variantId,
             Quantity = 3
         });
 
@@ -170,13 +173,13 @@ public class CartControllerTests : IAsyncLifetime
 
         var response = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = 9999,
+            ProductVariantId = 9999,
             Quantity = 1
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
         var body = await response.Content.ReadFromJsonAsync<ApiResponse>(Json);
-        body!.Error!.Code.Should().Be("PRODUCT_NOT_FOUND");
+        body!.Error!.Code.Should().Be("VARIANT_NOT_FOUND");
     }
 
     [Fact]
@@ -188,7 +191,7 @@ public class CartControllerTests : IAsyncLifetime
 
         var response = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = _productIds[0],
+            ProductVariantId = _variantIds[0],
             Quantity = 0
         });
 
@@ -203,10 +206,10 @@ public class CartControllerTests : IAsyncLifetime
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         // Use the 4th seeded product (Mechanical Keyboard, stock 25)
-        var productId = _productIds[3];
+        var variantId = _variantIds[3];
         var response = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = productId,
+            ProductVariantId = variantId,
             Quantity = 100
         });
 
@@ -237,11 +240,11 @@ public class CartControllerTests : IAsyncLifetime
         var token = await RegisterAndLoginAsync(client, "cart-upd-1@example.com");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var productId = _productIds[0];
+        var variantId = _variantIds[0];
         // Add an item first
         var addResponse = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = productId,
+            ProductVariantId = variantId,
             Quantity = 2
         });
         var added = await addResponse.Content.ReadFromJsonAsync<ApiResponse<CartItemDto>>(Json);
@@ -284,10 +287,10 @@ public class CartControllerTests : IAsyncLifetime
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         // Add 4th product (Mechanical Keyboard, stock 25)
-        var productId = _productIds[3];
+        var variantId = _variantIds[3];
         var addResponse = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = productId,
+            ProductVariantId = variantId,
             Quantity = 1
         });
         var added = await addResponse.Content.ReadFromJsonAsync<ApiResponse<CartItemDto>>(Json);
@@ -312,7 +315,7 @@ public class CartControllerTests : IAsyncLifetime
 
         var addResponse = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = _productIds[0],
+            ProductVariantId = _variantIds[0],
             Quantity = 1
         });
         var added = await addResponse.Content.ReadFromJsonAsync<ApiResponse<CartItemDto>>(Json);
@@ -347,7 +350,7 @@ public class CartControllerTests : IAsyncLifetime
 
         var addResponse = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = _productIds[0],
+            ProductVariantId = _variantIds[0],
             Quantity = 1
         });
         var added = await addResponse.Content.ReadFromJsonAsync<ApiResponse<CartItemDto>>(Json);
@@ -383,20 +386,20 @@ public class CartControllerTests : IAsyncLifetime
         var token = await RegisterAndLoginAsync(client, "cart-del-3@example.com");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var productA = _productIds[0];
-        var productB = _productIds[1];
+        var variantA = _variantIds[0];
+        var variantB = _variantIds[1];
 
         // Add two different items
         var add1 = await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = productA,
+            ProductVariantId = variantA,
             Quantity = 1
         });
         var item1 = (await add1.Content.ReadFromJsonAsync<ApiResponse<CartItemDto>>(Json))!.Data!;
 
         await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = productB,
+            ProductVariantId = variantB,
             Quantity = 1
         });
 
@@ -406,7 +409,7 @@ public class CartControllerTests : IAsyncLifetime
 
         var cart = await client.GetFromJsonAsync<ApiResponse<CartDto>>("/api/cart", Json);
         cart!.Data!.Items.Should().HaveCount(1);
-        cart.Data.Items[0].ProductId.Should().Be(productB);
+        cart.Data.Items[0].ProductVariantId.Should().Be(variantB);
     }
 
     // ─────────────── DELETE /api/cart (clear) ───────────────
@@ -431,12 +434,12 @@ public class CartControllerTests : IAsyncLifetime
         // Add items
         await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = _productIds[0],
+            ProductVariantId = _variantIds[0],
             Quantity = 2
         });
         await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = _productIds[1],
+            ProductVariantId = _variantIds[1],
             Quantity = 1
         });
 
@@ -490,5 +493,14 @@ public class CartControllerTests : IAsyncLifetime
         var response = await client.GetAsync("/api/products?pageSize=100");
         var body = await response.Content.ReadFromJsonAsync<ApiResponse<List<ProductListItem>>>(Json);
         return body!.Data!.Select(p => p.Id).ToArray();
+    }
+
+    private async Task<int[]> GetSeededVariantIdsAsync()
+    {
+        using var context = _factory.CreateDbContext();
+        return await context.ProductVariants
+            .OrderBy(v => v.Id)
+            .Select(v => v.Id)
+            .ToArrayAsync();
     }
 }

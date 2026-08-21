@@ -130,7 +130,7 @@ public class AdminProductsControllerTests : IAsyncLifetime
         first.Name.Should().NotBeNullOrEmpty();
         first.Slug.Should().NotBeNullOrEmpty();
         first.Price.Should().BeGreaterThan(0);
-        first.Stock.Should().BeGreaterThan(0);
+        first.TotalStock.Should().BeGreaterThan(0);
         first.CategoryName.Should().NotBeNullOrEmpty();
         first.CreatedAt.Should().BeAfter(DateTime.MinValue);
     }
@@ -222,7 +222,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
             Name = "Test Product",
             Description = "A test product",
             Price = 19.99m,
-            Stock = 10,
             CategoryId = _categoryIds[0]
         });
 
@@ -241,7 +240,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
             Name = "Test Product",
             Description = "A test product",
             Price = 19.99m,
-            Stock = 10,
             CategoryId = _categoryIds[0]
         });
 
@@ -260,7 +258,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
             Name = "Gaming Mouse",
             Description = "High-precision wireless gaming mouse",
             Price = 59.99m,
-            Stock = 42,
             CategoryId = _categoryIds[0]
         };
 
@@ -275,7 +272,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
         body.Data.Slug.Should().Be("gaming-mouse");
         body.Data.Description.Should().Be("High-precision wireless gaming mouse");
         body.Data.Price.Should().Be(59.99m);
-        body.Data.Stock.Should().Be(42);
         body.Data.IsActive.Should().BeTrue();
         body.Data.Category.Id.Should().Be(_categoryIds[0]);
         body.Data.Id.Should().BeGreaterThan(0);
@@ -294,7 +290,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
             Slug = "my-custom-slug",
             Description = "Product with custom slug",
             Price = 29.99m,
-            Stock = 10,
             CategoryId = _categoryIds[0]
         };
 
@@ -317,7 +312,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
             Name = "Wireless Headphones",
             Description = "Another wireless headphones product",
             Price = 99.99m,
-            Stock = 5,
             CategoryId = _categoryIds[0]
         };
 
@@ -340,7 +334,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
             Name = "Draft Product",
             Description = "This is a draft",
             Price = 10.00m,
-            Stock = 1,
             CategoryId = _categoryIds[0],
             IsActive = false
         };
@@ -364,7 +357,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
             Name = "Bad Category Product",
             Description = "Product with non-existent category",
             Price = 10.00m,
-            Stock = 1,
             CategoryId = 9999
         };
 
@@ -391,7 +383,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
             Name = "Updated Headphones",
             Description = "Updated description for headphones",
             Price = 89.99m,
-            Stock = 100,
             CategoryId = _categoryIds[0]
         };
 
@@ -403,7 +394,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
         body.Data!.Name.Should().Be("Updated Headphones");
         body.Data.Description.Should().Be("Updated description for headphones");
         body.Data.Price.Should().Be(89.99m);
-        body.Data.Stock.Should().Be(100);
     }
 
     [Fact]
@@ -418,7 +408,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
             Name = "Persisted Name",
             Description = "Persisted description",
             Price = 42.00m,
-            Stock = 7,
             CategoryId = _categoryIds[0]
         });
 
@@ -429,7 +418,7 @@ public class AdminProductsControllerTests : IAsyncLifetime
 
         updated.Name.Should().Be("Persisted Name");
         updated.Price.Should().Be(42.00m);
-        updated.Stock.Should().Be(7);
+        // TotalStock is not modified by UpdateProduct — stock lives on variants.
     }
 
     [Fact]
@@ -444,7 +433,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
             Name = "Ghost Product",
             Description = "Does not exist",
             Price = 1.00m,
-            Stock = 1,
             CategoryId = _categoryIds[0]
         });
 
@@ -466,7 +454,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
             Slug = "completely-new-slug",
             Description = "Updated",
             Price = 10.00m,
-            Stock = 5,
             CategoryId = _categoryIds[0]
         });
 
@@ -489,7 +476,6 @@ public class AdminProductsControllerTests : IAsyncLifetime
             Slug = targetProduct,
             Description = "Slug collision",
             Price = 5.00m,
-            Stock = 1,
             CategoryId = _categoryIds[0]
         });
 
@@ -594,7 +580,7 @@ public class AdminProductsControllerTests : IAsyncLifetime
             ctx.CartItems.Add(new CartItem
             {
                 CartId = cart.Id,
-                ProductId = _productIds[0],
+                ProductVariantId = ctx.ProductVariants.First(v => v.ProductId == _productIds[0]).Id,
                 Quantity = 1,
                 UnitPrice = 10m
             });

@@ -54,10 +54,11 @@ public class OrdersController : ControllerBase
         var customerId = _userManager.GetUserId(User)!;
         var shippingFee = _shippingOptions.Fee;
 
-        // Load the cart with items and products
+        // Load the cart with items and variants
         var cart = await _context.Carts
             .Include(c => c.Items)
-            .ThenInclude(ci => ci.Product)
+            .ThenInclude(ci => ci.ProductVariant)
+            .ThenInclude(v => v.Product)
             .FirstOrDefaultAsync(c => c.CustomerId == customerId, cancellationToken);
 
         if (cart is null || cart.Items.Count == 0)
@@ -109,8 +110,8 @@ public class OrdersController : ControllerBase
         var subtotal = cart.Items.Sum(i => i.UnitPrice * i.Quantity);
         var total = subtotal + shippingFee;
 
-        // ── Atomic stock deduction (ADR 0002) ──────────────────────────────
-        // Each cart item issues: UPDATE "Products" SET "Stock" = "Stock" - @qty
+        // ── Atomic stock deduction (ADR 0002, per-variant ADR 0003) ────────
+        // Each cart item issues: UPDATE "ProductVariants" SET "Stock" = "Stock" - @qty
         // WHERE "Id" = @id AND "Stock" >= @qty.  rowsAffected==0 means
         // insufficient stock (or concurrent winner).  On the InMemory provider
         // used by tests ExecuteSql is not supported — fall back to tracked
@@ -124,21 +125,21 @@ public class OrdersController : ControllerBase
             if (isInMemory)
             {
                 // Simulate the atomic guard for the InMemory provider used in tests
-                var currentStock = item.Product.Stock;
+                var currentStock = item.ProductVariant.Stock;
                 if (currentStock < item.Quantity)
                 {
                     rowsAffected = 0;
                 }
                 else
                 {
-                    item.Product.Stock -= item.Quantity;
+                    item.ProductVariant.Stock -= item.Quantity;
                     rowsAffected = 1;
                 }
             }
             else
             {
                 rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
-                    $"UPDATE \"Products\" SET \"Stock\" = \"Stock\" - {item.Quantity} WHERE \"Id\" = {item.ProductId} AND \"Stock\" >= {item.Quantity}",
+                    $"UPDATE \"ProductVariants\" SET \"Stock\" = \"Stock\" - {item.Quantity} WHERE \"Id\" = {item.ProductVariantId} AND \"Stock\" >= {item.Quantity}",
                     cancellationToken);
             }
 
@@ -149,19 +150,19 @@ public class OrdersController : ControllerBase
                 {
                     if (isInMemory)
                     {
-                        prev.Product.Stock += prev.Quantity;
+                        prev.ProductVariant.Stock += prev.Quantity;
                     }
                     else
                     {
                         await _context.Database.ExecuteSqlInterpolatedAsync(
-                            $"UPDATE \"Products\" SET \"Stock\" = \"Stock\" + {prev.Quantity} WHERE \"Id\" = {prev.ProductId}",
+                            $"UPDATE \"ProductVariants\" SET \"Stock\" = \"Stock\" + {prev.Quantity} WHERE \"Id\" = {prev.ProductVariantId}",
                             cancellationToken);
                     }
                 }
 
                 // Refresh tracked stock so subsequent error messages are accurate
-                var name = item.Product.Name;
-                var available = isInMemory ? item.Product.Stock : 0;
+                var name = item.ProductVariant.Product.Name;
+                var available = isInMemory ? item.ProductVariant.Stock : 0;
                 var msg = available > 0
                     ? $"Only {available} units of \"{name}\" are available, but you have {item.Quantity} in your cart."
                     : $"Insufficient stock for \"{name}\" (requested {item.Quantity}).";
@@ -191,12 +192,12 @@ public class OrdersController : ControllerBase
             {
                 if (isInMemory)
                 {
-                    item.Product.Stock += item.Quantity;
+                    item.ProductVariant.Stock += item.Quantity;
                 }
                 else
                 {
                     await _context.Database.ExecuteSqlInterpolatedAsync(
-                        $"UPDATE \"Products\" SET \"Stock\" = \"Stock\" + {item.Quantity} WHERE \"Id\" = {item.ProductId}",
+                        $"UPDATE \"ProductVariants\" SET \"Stock\" = \"Stock\" + {item.Quantity} WHERE \"Id\" = {item.ProductVariantId}",
                         cancellationToken);
                 }
             }
@@ -236,8 +237,8 @@ public class OrdersController : ControllerBase
             CreatedAt = DateTime.UtcNow,
             Items = cart.Items.Select(ci => new OrderItem
             {
-                ProductId = ci.ProductId,
-                ProductName = ci.Product.Name,
+                ProductVariantId = ci.ProductVariantId,
+                ProductName = FormatOrderItemName(ci.ProductVariant.Product, ci.ProductVariant),
                 UnitPrice = ci.UnitPrice,
                 Quantity = ci.Quantity
             }).ToList()
@@ -342,6 +343,22 @@ public class OrdersController : ControllerBase
 
     // ─────────────── Private helpers ───────────────
 
+    /// <summary>
+    /// Formats the order item product name per ADR 0003:
+    /// "Product Name" for no-attribute variants,
+    /// "Product Name (Color, Size)" for ones with attributes.
+    /// </summary>
+    private static string FormatOrderItemName(Product product, ProductVariant variant)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(variant.Color)) parts.Add(variant.Color);
+        if (!string.IsNullOrEmpty(variant.Size)) parts.Add(variant.Size);
+
+        return parts.Count > 0
+            ? $"{product.Name} ({string.Join(", ", parts)})"
+            : product.Name;
+    }
+
     private static OrderDto MapOrderToDto(Order order)
     {
         return new OrderDto
@@ -361,7 +378,7 @@ public class OrdersController : ControllerBase
             Items = order.Items.Select(i => new OrderItemDto
             {
                 Id = i.Id,
-                ProductId = i.ProductId,
+                ProductVariantId = i.ProductVariantId,
                 ProductName = i.ProductName,
                 UnitPrice = i.UnitPrice,
                 Quantity = i.Quantity

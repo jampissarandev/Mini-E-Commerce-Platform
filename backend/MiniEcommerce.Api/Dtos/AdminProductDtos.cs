@@ -25,10 +25,6 @@ public record CreateProductRequest
     [SwaggerSchema("Unit price in USD.")]
     public decimal Price { get; init; }
 
-    [Range(0, int.MaxValue)]
-    [SwaggerSchema("Available stock quantity.")]
-    public int Stock { get; init; }
-
     [SwaggerSchema("Id of the category this product belongs to.")]
     public int CategoryId { get; init; }
 
@@ -56,10 +52,6 @@ public record UpdateProductRequest
     [SwaggerSchema("Unit price in USD.")]
     public decimal Price { get; init; }
 
-    [Range(0, int.MaxValue)]
-    [SwaggerSchema("Available stock quantity.")]
-    public int Stock { get; init; }
-
     [SwaggerSchema("Id of the category this product belongs to.")]
     public int CategoryId { get; init; }
 
@@ -84,8 +76,11 @@ public record AdminProductListItem
     [SwaggerSchema("Unit price in USD.")]
     public decimal Price { get; init; }
 
-    [SwaggerSchema("Available stock quantity.")]
-    public int Stock { get; init; }
+    [SwaggerSchema("Total stock across all active variants.")]
+    public int TotalStock { get; init; }
+
+    [SwaggerSchema("Number of active variants.")]
+    public int VariantCount { get; init; }
 
     [SwaggerSchema("Whether the product is visible in the public catalog.")]
     public bool IsActive { get; init; }
@@ -118,9 +113,6 @@ public record AdminProductDetailDto
     [SwaggerSchema("Unit price in USD.")]
     public decimal Price { get; init; }
 
-    [SwaggerSchema("Available stock quantity.")]
-    public int Stock { get; init; }
-
     [SwaggerSchema("Whether the product is visible in the public catalog.")]
     public bool IsActive { get; init; }
 
@@ -132,4 +124,53 @@ public record AdminProductDetailDto
 
     [SwaggerSchema("Product images, ordered by SortOrder.")]
     public List<ProductImageDto> Images { get; init; } = [];
+
+    [SwaggerSchema("Product variants with stock and attributes.")]
+    public List<ProductVariantDto> Variants { get; init; } = [];
+}
+
+// ═══════════════════ Variant Management DTOs ═══════════════════
+
+[SwaggerSchema("Creates a new variant for a product.")]
+public record CreateVariantRequest
+{
+    [Required]
+    [MaxLength(100)]
+    [SwaggerSchema("Unique stock-keeping unit identifier.")]
+    public string Sku { get; init; } = string.Empty;
+
+    [SwaggerSchema("Optional size attribute (e.g. S, M, L).")]
+    public string? Size { get; init; }
+
+    [SwaggerSchema("Optional color attribute (e.g. Black, White).")]
+    public string? Color { get; init; }
+
+    [Range(0, int.MaxValue)]
+    [SwaggerSchema("Available stock for this variant.")]
+    public int Stock { get; init; }
+
+    [SwaggerSchema("Whether this variant is visible in the catalog.")]
+    public bool IsActive { get; init; } = true;
+}
+
+[SwaggerSchema("Updates an existing variant.")]
+public record UpdateVariantRequest
+{
+    [Required]
+    [MaxLength(100)]
+    [SwaggerSchema("Unique stock-keeping unit identifier.")]
+    public string Sku { get; init; } = string.Empty;
+
+    [SwaggerSchema("Optional size attribute.")]
+    public string? Size { get; init; }
+
+    [SwaggerSchema("Optional color attribute.")]
+    public string? Color { get; init; }
+
+    [Range(0, int.MaxValue)]
+    [SwaggerSchema("Available stock for this variant.")]
+    public int Stock { get; init; }
+
+    [SwaggerSchema("Whether this variant is visible in the catalog.")]
+    public bool IsActive { get; init; } = true;
 }

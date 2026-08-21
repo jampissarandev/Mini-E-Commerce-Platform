@@ -731,14 +731,14 @@ public class AdminOrdersControllerTests : IAsyncLifetime
             }
         }
 
-        int productId, stockBefore, quantity;
+        int variantId, stockBefore, quantity;
         using (var ctx = _factory.CreateDbContext())
         {
             var item = await ctx.OrderItems.FirstAsync(i => i.OrderId == orderId);
-            productId = item.ProductId;
+            variantId = item.ProductVariantId;
             quantity = item.Quantity;
-            var product = await ctx.Products.FindAsync(productId);
-            stockBefore = product!.Stock;
+            var variant = await ctx.ProductVariants.FindAsync(variantId);
+            stockBefore = variant!.Stock;
         }
 
         // Admin cancels
@@ -753,8 +753,8 @@ public class AdminOrdersControllerTests : IAsyncLifetime
         // Stock should be restored to the pre-deduction value
         using (var ctx = _factory.CreateDbContext())
         {
-            var product = await ctx.Products.FindAsync(productId);
-            product!.Stock.Should().Be(stockBefore + quantity,
+            var variant = await ctx.ProductVariants.FindAsync(variantId);
+            variant!.Stock.Should().Be(stockBefore + quantity,
                 $"cancelling from {fromState} must restock {quantity} units (ADR 0001)");
         }
     }
@@ -795,16 +795,16 @@ public class AdminOrdersControllerTests : IAsyncLifetime
     /// </summary>
     private async Task<int> AddToCartAndCheckout(HttpClient client, string fullName = "Test Customer")
     {
-        // Get a product ID from the seeded catalog
-        int productId;
+        // Get the first variant ID from the seeded catalog
+        int variantId;
         using (var ctx = _factory.CreateDbContext())
         {
-            productId = await ctx.Products.OrderBy(p => p.Id).Select(p => p.Id).FirstAsync();
+            variantId = await ctx.ProductVariants.OrderBy(v => v.Id).Select(v => v.Id).FirstAsync();
         }
 
         await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
         {
-            ProductId = productId,
+            ProductVariantId = variantId,
             Quantity = 1
         });
 
@@ -895,10 +895,11 @@ public class AdminOrdersControllerTests : IAsyncLifetime
         using var ctx = _factory.CreateDbContext();
         var user = await ctx.Users.FirstAsync(u => u.Email == email);
         var product = await ctx.Products.OrderBy(p => p.Id).FirstAsync();
+        var variant = await ctx.ProductVariants.FirstAsync(v => v.ProductId == product.Id);
 
         // Deduct stock first (mirrors OrdersController.Checkout), so the
         // order's existence implies a real stock reservation.
-        product.Stock -= quantity;
+        variant.Stock -= quantity;
         await ctx.SaveChangesAsync();
 
         var order = new Order
@@ -922,7 +923,7 @@ public class AdminOrdersControllerTests : IAsyncLifetime
         var orderItem = new OrderItem
         {
             OrderId = order.Id,
-            ProductId = product.Id,
+            ProductVariantId = variant.Id,
             ProductName = product.Name,
             UnitPrice = product.Price,
             Quantity = quantity,

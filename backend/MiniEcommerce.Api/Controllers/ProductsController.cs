@@ -90,6 +90,7 @@ public class ProductsController : ControllerBase
         var product = await _context.Products
             .Include(p => p.Category)
             .Include(p => p.Images)
+            .Include(p => p.Variants)
             .FirstOrDefaultAsync(p => p.Id == id && p.IsActive, cancellationToken);
 
         if (product is null)
@@ -111,7 +112,6 @@ public class ProductsController : ControllerBase
             Slug = product.Slug,
             Description = product.Description,
             Price = product.Price,
-            Stock = product.Stock,
             CreatedAt = product.CreatedAt,
             Category = new ProductCategoryDto
             {
@@ -126,6 +126,19 @@ public class ProductsController : ControllerBase
                     Id = i.Id,
                     Url = i.Url,
                     SortOrder = i.SortOrder
+                })
+                .ToList(),
+            Variants = product.Variants
+                .Where(v => v.IsActive)
+                .OrderBy(v => v.Id)
+                .Select(v => new ProductVariantDto
+                {
+                    Id = v.Id,
+                    Sku = v.Sku,
+                    Size = v.Size,
+                    Color = v.Color,
+                    Stock = v.Stock,
+                    IsActive = v.IsActive
                 })
                 .ToList()
         };

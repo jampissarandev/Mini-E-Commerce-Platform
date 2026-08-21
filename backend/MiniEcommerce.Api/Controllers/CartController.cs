@@ -39,10 +39,10 @@ public class CartController : ControllerBase
     }
 
     /// <summary>
-    /// Add an item to the cart. If the product is already in the cart, the quantity is increased.
+    /// Add an item to the cart. If the variant is already in the cart, the quantity is increased.
     /// </summary>
     [HttpPost("items")]
-    [SwaggerOperation(Summary = "Add item to cart", Description = "Adds a product to the cart or increases quantity if already present. 400 INSUFFICIENT_STOCK if quantity exceeds stock.")]
+    [SwaggerOperation(Summary = "Add item to cart", Description = "Adds a product variant to the cart or increases quantity if already present. 400 INSUFFICIENT_STOCK if quantity exceeds stock.")]
     [ProducesResponseType(typeof(ApiResponse<CartItemDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<CartItemDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
@@ -54,76 +54,77 @@ public class CartController : ControllerBase
         var customerId = _userManager.GetUserId(User)!;
         var cart = await GetOrCreateCartAsync(customerId, cancellationToken);
 
-        // Validate product exists
-        var product = await _context.Products
-            .FirstOrDefaultAsync(p => p.Id == request.ProductId, cancellationToken);
+        // Validate variant exists
+        var variant = await _context.ProductVariants
+            .Include(v => v.Product)
+            .FirstOrDefaultAsync(v => v.Id == request.ProductVariantId, cancellationToken);
 
-        if (product is null)
+        if (variant is null)
         {
             return NotFound(ApiResponse.Fail(new ApiError
             {
-                Code = "PRODUCT_NOT_FOUND",
-                Message = $"Product with ID {request.ProductId} was not found."
+                Code = "VARIANT_NOT_FOUND",
+                Message = $"Product variant with ID {request.ProductVariantId} was not found."
             }));
         }
 
-        if (!product.IsActive)
+        if (!variant.IsActive || !variant.Product.IsActive)
         {
             return NotFound(ApiResponse.Fail(new ApiError
             {
-                Code = "PRODUCT_NOT_FOUND",
-                Message = $"Product with ID {request.ProductId} is no longer available."
+                Code = "VARIANT_NOT_FOUND",
+                Message = $"Product variant with ID {request.ProductVariantId} is no longer available."
             }));
         }
 
         // Check if item already exists in cart
         var existingItem = await _context.CartItems
-            .FirstOrDefaultAsync(ci => ci.CartId == cart.Id && ci.ProductId == request.ProductId, cancellationToken);
+            .FirstOrDefaultAsync(ci => ci.CartId == cart.Id && ci.ProductVariantId == request.ProductVariantId, cancellationToken);
 
         if (existingItem is not null)
         {
             var newQuantity = existingItem.Quantity + request.Quantity;
 
-            if (newQuantity > product.Stock)
+            if (newQuantity > variant.Stock)
             {
                 return BadRequest(ApiResponse.Fail(new ApiError
                 {
                     Code = "INSUFFICIENT_STOCK",
-                    Message = $"Only {product.Stock} units of \"{product.Name}\" are available. You already have {existingItem.Quantity} in your cart."
+                    Message = $"Only {variant.Stock} units of \"{variant.Product.Name}\" are available. You already have {existingItem.Quantity} in your cart."
                 }));
             }
 
             existingItem.Quantity = newQuantity;
-            existingItem.UnitPrice = product.Price;
+            existingItem.UnitPrice = variant.Product.Price;
             cart.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
 
-            var updatedDto = MapCartItemToDto(existingItem, product);
+            var updatedDto = MapCartItemToDto(existingItem, variant);
             return Ok(ApiResponse<CartItemDto>.Ok(updatedDto));
         }
 
-        if (request.Quantity > product.Stock)
+        if (request.Quantity > variant.Stock)
         {
             return BadRequest(ApiResponse.Fail(new ApiError
             {
                 Code = "INSUFFICIENT_STOCK",
-                Message = $"Only {product.Stock} units of \"{product.Name}\" are available."
+                Message = $"Only {variant.Stock} units of \"{variant.Product.Name}\" are available."
             }));
         }
 
         var cartItem = new CartItem
         {
             CartId = cart.Id,
-            ProductId = product.Id,
+            ProductVariantId = variant.Id,
             Quantity = request.Quantity,
-            UnitPrice = product.Price
+            UnitPrice = variant.Product.Price
         };
 
         _context.CartItems.Add(cartItem);
         cart.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 
-        var dto = MapCartItemToDto(cartItem, product);
+        var dto = MapCartItemToDto(cartItem, variant);
         return StatusCode(StatusCodes.Status201Created, ApiResponse<CartItemDto>.Ok(dto));
     }
 
@@ -144,7 +145,8 @@ public class CartController : ControllerBase
         var cart = await GetOrCreateCartAsync(customerId, cancellationToken);
 
         var cartItem = await _context.CartItems
-            .Include(ci => ci.Product)
+            .Include(ci => ci.ProductVariant)
+            .ThenInclude(v => v.Product)
             .FirstOrDefaultAsync(ci => ci.Id == id && ci.CartId == cart.Id, cancellationToken);
 
         if (cartItem is null)
@@ -156,21 +158,21 @@ public class CartController : ControllerBase
             }));
         }
 
-        if (request.Quantity > cartItem.Product.Stock)
+        if (request.Quantity > cartItem.ProductVariant.Stock)
         {
             return BadRequest(ApiResponse.Fail(new ApiError
             {
                 Code = "INSUFFICIENT_STOCK",
-                Message = $"Only {cartItem.Product.Stock} units of \"{cartItem.Product.Name}\" are available."
+                Message = $"Only {cartItem.ProductVariant.Stock} units of \"{cartItem.ProductVariant.Product.Name}\" are available."
             }));
         }
 
         cartItem.Quantity = request.Quantity;
-        cartItem.UnitPrice = cartItem.Product.Price;
+        cartItem.UnitPrice = cartItem.ProductVariant.Product.Price;
         cart.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 
-        var dto = MapCartItemToDto(cartItem, cartItem.Product);
+        var dto = MapCartItemToDto(cartItem, cartItem.ProductVariant);
         return Ok(ApiResponse<CartItemDto>.Ok(dto));
     }
 
@@ -258,7 +260,8 @@ public class CartController : ControllerBase
     {
         var items = await _context.CartItems
             .Where(ci => ci.CartId == cart.Id)
-            .Include(ci => ci.Product)
+            .Include(ci => ci.ProductVariant)
+            .ThenInclude(v => v.Product)
             .ThenInclude(p => p.Images.OrderBy(i => i.SortOrder).Take(1))
             .ToListAsync(cancellationToken);
 
@@ -270,25 +273,29 @@ public class CartController : ControllerBase
             Items = items.Select(ci => new CartItemDto
             {
                 Id = ci.Id,
-                ProductId = ci.ProductId,
-                ProductName = ci.Product.Name,
-                ProductSlug = ci.Product.Slug,
-                ImageUrl = ci.Product.Images.OrderBy(i => i.SortOrder).Select(i => i.Url).FirstOrDefault() ?? string.Empty,
+                ProductVariantId = ci.ProductVariantId,
+                ProductName = ci.ProductVariant.Product.Name,
+                ProductSlug = ci.ProductVariant.Product.Slug,
+                Size = ci.ProductVariant.Size,
+                Color = ci.ProductVariant.Color,
+                ImageUrl = ci.ProductVariant.Product.Images.OrderBy(i => i.SortOrder).Select(i => i.Url).FirstOrDefault() ?? string.Empty,
                 UnitPrice = ci.UnitPrice,
                 Quantity = ci.Quantity
             }).ToList()
         };
     }
 
-    private static CartItemDto MapCartItemToDto(CartItem cartItem, Product product)
+    private static CartItemDto MapCartItemToDto(CartItem cartItem, ProductVariant variant)
     {
         return new CartItemDto
         {
             Id = cartItem.Id,
-            ProductId = cartItem.ProductId,
-            ProductName = product.Name,
-            ProductSlug = product.Slug,
-            ImageUrl = product.Images.OrderBy(i => i.SortOrder).Select(i => i.Url).FirstOrDefault() ?? string.Empty,
+            ProductVariantId = cartItem.ProductVariantId,
+            ProductName = variant.Product.Name,
+            ProductSlug = variant.Product.Slug,
+            Size = variant.Size,
+            Color = variant.Color,
+            ImageUrl = variant.Product.Images.OrderBy(i => i.SortOrder).Select(i => i.Url).FirstOrDefault() ?? string.Empty,
             UnitPrice = cartItem.UnitPrice,
             Quantity = cartItem.Quantity
         };

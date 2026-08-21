@@ -30,10 +30,24 @@ public record ProductDetailDto
     public string Slug { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
     public decimal Price { get; init; }
-    public int Stock { get; init; }
     public DateTime CreatedAt { get; init; }
     public ProductCategoryDto Category { get; init; } = null!;
     public List<ProductImageDto> Images { get; init; } = [];
+    public List<ProductVariantDto> Variants { get; init; } = [];
+}
+
+/// <summary>
+/// Sellable unit payload — one per product variant. Carries its own stock,
+/// SKU, and optional attributes. Mirrors ADR 0003 (Task 27).
+/// </summary>
+public record ProductVariantDto
+{
+    public int Id { get; init; }
+    public string Sku { get; init; } = string.Empty;
+    public string? Size { get; init; }
+    public string? Color { get; init; }
+    public int Stock { get; init; }
+    public bool IsActive { get; init; }
 }
 
 /// <summary>

@@ -27,8 +27,9 @@ public record SalesPoint
 }
 
 /// <summary>
-/// A product flagged for restocking (Task 17a). v1 has no variants
-/// (ADR 0003 is Phase 7), so stock lives on <see cref="Models.Product"/>.
+/// A product flagged for restocking (Task 17a). In ADR 0003 (Task 27),
+/// stock lives on <see cref="Models.ProductVariant"/>; the <see cref="Stock"/>
+/// property represents the sum of active variant stock for display purposes.
 /// </summary>
 public record LowStockProductDto
 {

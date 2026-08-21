@@ -7,9 +7,9 @@ namespace MiniEcommerce.Api.Dtos;
 public record AddCartItemRequest
 {
     [Required]
-    [Range(1, int.MaxValue, ErrorMessage = "ProductId must be a positive integer.")]
-    [SwaggerSchema("Id of the product to add.")]
-    public int ProductId { get; init; }
+    [Range(1, int.MaxValue, ErrorMessage = "ProductVariantId must be a positive integer.")]
+    [SwaggerSchema("Id of the product variant to add.")]
+    public int ProductVariantId { get; init; }
 
     [Required]
     [Range(1, 100, ErrorMessage = "Quantity must be between 1 and 100.")]
@@ -51,14 +51,20 @@ public record CartItemDto
     [SwaggerSchema("Cart item id.")]
     public int Id { get; init; }
 
-    [SwaggerSchema("Id of the referenced product.")]
-    public int ProductId { get; init; }
+    [SwaggerSchema("Id of the referenced product variant.")]
+    public int ProductVariantId { get; init; }
 
     [SwaggerSchema("Product name snapshot at add-time.")]
     public string ProductName { get; init; } = string.Empty;
 
     [SwaggerSchema("Product slug for deep links.")]
     public string ProductSlug { get; init; } = string.Empty;
+
+    [SwaggerSchema("Variant size attribute, if any.")]
+    public string? Size { get; init; }
+
+    [SwaggerSchema("Variant color attribute, if any.")]
+    public string? Color { get; init; }
 
     [SwaggerSchema("Primary product image URL.")]
     public string ImageUrl { get; init; } = string.Empty;

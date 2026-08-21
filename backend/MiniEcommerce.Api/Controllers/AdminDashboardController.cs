@@ -49,8 +49,13 @@ public class AdminDashboardController : ControllerBase
         var totalRevenue = await _context.Orders
             .SumAsync(o => (decimal?)o.Total, cancellationToken) ?? 0m;
         var totalProducts = await _context.Products.CountAsync(cancellationToken);
+        // Low-stock = products whose total active-variant stock <= threshold.
+        // ADR 0003 (Task 27): stock lives on ProductVariant, not Product.
         var lowStockCount = await _context.Products
-            .CountAsync(p => p.Stock <= DefaultLowStockThreshold, cancellationToken);
+            .Where(p => p.Variants
+                .Where(v => v.IsActive)
+                .Sum(v => v.Stock) <= DefaultLowStockThreshold)
+            .CountAsync(cancellationToken);
 
         // "Customer" is the canonical term for the person who places orders
         // (CONTEXT.md) — count users in the Customer role, not every user.
@@ -180,14 +185,22 @@ public class AdminDashboardController : ControllerBase
         if (threshold < 0) threshold = 0;
 
         var products = await _context.Products
-            .Where(p => p.Stock <= threshold)
-            .OrderBy(p => p.Stock)
+            .Select(p => new
+            {
+                p.Id,
+                p.Name,
+                TotalStock = p.Variants
+                    .Where(v => v.IsActive)
+                    .Sum(v => v.Stock)
+            })
+            .Where(p => p.TotalStock <= threshold)
+            .OrderBy(p => p.TotalStock)
             .ThenBy(p => p.Name)
             .Select(p => new LowStockProductDto
             {
                 Id = p.Id,
                 Name = p.Name,
-                Stock = p.Stock
+                Stock = p.TotalStock
             })
             .ToListAsync(cancellationToken);
 

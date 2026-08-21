@@ -172,7 +172,8 @@ public class AdminOrdersController : ControllerBase
         var order = await _context.Orders
             .Include(o => o.Customer)
             .Include(o => o.Items)
-            .ThenInclude(i => i.Product)
+            .ThenInclude(i => i.ProductVariant)
+            .ThenInclude(pv => pv.Product)
             .ThenInclude(p => p.Images)
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
 
@@ -237,7 +238,7 @@ public class AdminOrdersController : ControllerBase
         var order = await _context.Orders
             .Include(o => o.Customer)
             .Include(o => o.Items)
-            .ThenInclude(i => i.Product)
+            .ThenInclude(i => i.ProductVariant)
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
 
         if (order is null)
@@ -274,7 +275,7 @@ public class AdminOrdersController : ControllerBase
         {
             foreach (var item in order.Items)
             {
-                item.Product.Stock += item.Quantity;
+                item.ProductVariant.Stock += item.Quantity;
             }
         }
 

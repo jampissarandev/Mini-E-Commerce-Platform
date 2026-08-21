@@ -13,6 +13,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<Cart> Carts => Set<Cart>();
     public DbSet<CartItem> CartItems => Set<CartItem>();
@@ -55,6 +56,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        // ProductVariant — ADR 0003 (Task 27)
+        builder.Entity<ProductVariant>(e =>
+        {
+            e.HasIndex(pv => pv.Sku).IsUnique();
+            e.HasOne(pv => pv.Product)
+                .WithMany(p => p.Variants)
+                .HasForeignKey(pv => pv.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         // Cart
         builder.Entity<Cart>(e =>
         {
@@ -65,17 +76,17 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // CartItem
+        // CartItem — ADR 0003: FK switches from Product to ProductVariant
         builder.Entity<CartItem>(e =>
         {
-            e.HasIndex(ci => new { ci.CartId, ci.ProductId }).IsUnique();
+            e.HasIndex(ci => new { ci.CartId, ci.ProductVariantId }).IsUnique();
             e.HasOne(ci => ci.Cart)
                 .WithMany(c => c.Items)
                 .HasForeignKey(ci => ci.CartId)
                 .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(ci => ci.Product)
-                .WithMany(p => p.CartItems)
-                .HasForeignKey(ci => ci.ProductId)
+            e.HasOne(ci => ci.ProductVariant)
+                .WithMany(pv => pv.CartItems)
+                .HasForeignKey(ci => ci.ProductVariantId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.Property(ci => ci.UnitPrice).HasPrecision(18, 2);
         });
@@ -92,16 +103,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             e.Property(o => o.Total).HasPrecision(18, 2);
         });
 
-        // OrderItem
+        // OrderItem — ADR 0003: FK switches from Product to ProductVariant
         builder.Entity<OrderItem>(e =>
         {
             e.HasOne(oi => oi.Order)
                 .WithMany(o => o.Items)
                 .HasForeignKey(oi => oi.OrderId)
                 .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(oi => oi.Product)
-                .WithMany(p => p.OrderItems)
-                .HasForeignKey(oi => oi.ProductId)
+            e.HasOne(oi => oi.ProductVariant)
+                .WithMany(pv => pv.OrderItems)
+                .HasForeignKey(oi => oi.ProductVariantId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.Property(oi => oi.UnitPrice).HasPrecision(18, 2);
         });

@@ -71,6 +71,7 @@ public class AdminProductsController : ControllerBase
 
         var totalCount = await query.CountAsync(cancellationToken);
         var products = await query
+            .Include(p => p.Variants)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(p => new AdminProductListItem
@@ -79,7 +80,8 @@ public class AdminProductsController : ControllerBase
                 Name = p.Name,
                 Slug = p.Slug,
                 Price = p.Price,
-                Stock = p.Stock,
+                TotalStock = p.Variants.Where(v => v.IsActive).Sum(v => v.Stock),
+                VariantCount = p.Variants.Count(v => v.IsActive),
                 IsActive = p.IsActive,
                 CategoryName = p.Category.Name,
                 ImageUrl = p.Images
@@ -146,7 +148,6 @@ public class AdminProductsController : ControllerBase
             Slug = slug,
             Description = request.Description,
             Price = request.Price,
-            Stock = request.Stock,
             CategoryId = request.CategoryId,
             IsActive = request.IsActive,
             CreatedAt = DateTime.UtcNow
@@ -155,8 +156,19 @@ public class AdminProductsController : ControllerBase
         _context.Products.Add(product);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Reload with category for the response
+        // Create a default variant for the new product — ADR 0003 (Task 27).
+        var defaultVariant = new ProductVariant
+        {
+            ProductId = product.Id,
+            Sku = $"SKU-{product.Id}",
+            IsActive = true
+        };
+        _context.ProductVariants.Add(defaultVariant);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Reload with category and variants for the response
         await _context.Entry(product).Reference(p => p.Category).LoadAsync(cancellationToken);
+        await _context.Entry(product).Collection(p => p.Variants).LoadAsync(cancellationToken);
 
         var dto = MapToDetailDto(product);
         return CreatedAtAction(nameof(GetProducts), null, ApiResponse<AdminProductDetailDto>.Ok(dto));
@@ -223,14 +235,14 @@ public class AdminProductsController : ControllerBase
         product.Slug = slug;
         product.Description = request.Description;
         product.Price = request.Price;
-        product.Stock = request.Stock;
         product.CategoryId = request.CategoryId;
         product.IsActive = request.IsActive;
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Reload category reference for response
+        // Reload category and variants for response
         await _context.Entry(product).Reference(p => p.Category).LoadAsync(cancellationToken);
+        await _context.Entry(product).Collection(p => p.Variants).LoadAsync(cancellationToken);
 
         var dto = MapToDetailDto(product);
         return Ok(ApiResponse<AdminProductDetailDto>.Ok(dto));
@@ -268,10 +280,17 @@ public class AdminProductsController : ControllerBase
         if (hard)
         {
             // Check if the product is referenced by any order item or cart item
-            var inUse = await _context.OrderItems
-                .AnyAsync(oi => oi.ProductId == id, cancellationToken) ||
+            // via its variants — ADR 0003 (Task 27).
+            var variantIds = await _context.ProductVariants
+                .Where(pv => pv.ProductId == id)
+                .Select(pv => pv.Id)
+                .ToListAsync(cancellationToken);
+
+            var inUse = variantIds.Count > 0 && (
+                await _context.OrderItems
+                    .AnyAsync(oi => variantIds.Contains(oi.ProductVariantId), cancellationToken) ||
                 await _context.CartItems
-                .AnyAsync(ci => ci.ProductId == id, cancellationToken);
+                    .AnyAsync(ci => variantIds.Contains(ci.ProductVariantId), cancellationToken));
 
             if (inUse)
             {
@@ -426,6 +445,215 @@ public class AdminProductsController : ControllerBase
     }
 
     // ═══════════════════════════════════════════════════════════
+    //  POST /api/admin/products/:id/variants
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Create a new variant for a product — ADR 0003 (Task 27).
+    /// </summary>
+    [HttpPost("{id:int}/variants")]
+    [ProducesResponseType(typeof(ApiResponse<ProductVariantDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CreateVariant(
+        int id,
+        [FromBody] CreateVariantRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var product = await _context.Products
+            .Include(p => p.Variants)
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+        if (product is null)
+        {
+            return NotFound(ApiResponse.Fail(new ApiError
+            {
+                Code = "PRODUCT_NOT_FOUND",
+                Message = $"Product with ID {id} was not found."
+            }));
+        }
+
+        // Check SKU uniqueness
+        if (await _context.ProductVariants.AnyAsync(v => v.Sku == request.Sku, cancellationToken))
+        {
+            return Conflict(ApiResponse.Fail(new ApiError
+            {
+                Code = "SKU_TAKEN",
+                Message = $"A variant with SKU \"{request.Sku}\" already exists."
+            }));
+        }
+
+        var variant = new ProductVariant
+        {
+            ProductId = id,
+            Sku = request.Sku,
+            Size = request.Size,
+            Color = request.Color,
+            Stock = request.Stock,
+            IsActive = request.IsActive
+        };
+
+        _context.ProductVariants.Add(variant);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var dto = new ProductVariantDto
+        {
+            Id = variant.Id,
+            Sku = variant.Sku,
+            Size = variant.Size,
+            Color = variant.Color,
+            Stock = variant.Stock,
+            IsActive = variant.IsActive
+        };
+
+        return StatusCode(StatusCodes.Status201Created, ApiResponse<ProductVariantDto>.Ok(dto));
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  PUT /api/admin/products/:id/variants/:variantId
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Update an existing variant — ADR 0003 (Task 27).
+    /// </summary>
+    [HttpPut("{id:int}/variants/{variantId:int}")]
+    [ProducesResponseType(typeof(ApiResponse<ProductVariantDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdateVariant(
+        int id,
+        int variantId,
+        [FromBody] UpdateVariantRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var variant = await _context.ProductVariants
+            .FirstOrDefaultAsync(v => v.Id == variantId && v.ProductId == id, cancellationToken);
+
+        if (variant is null)
+        {
+            return NotFound(ApiResponse.Fail(new ApiError
+            {
+                Code = "VARIANT_NOT_FOUND",
+                Message = $"Variant with ID {variantId} was not found for product {id}."
+            }));
+        }
+
+        // Check SKU uniqueness (exclude current variant)
+        if (await _context.ProductVariants.AnyAsync(v => v.Sku == request.Sku && v.Id != variantId, cancellationToken))
+        {
+            return Conflict(ApiResponse.Fail(new ApiError
+            {
+                Code = "SKU_TAKEN",
+                Message = $"A variant with SKU \"{request.Sku}\" already exists."
+            }));
+        }
+
+        variant.Sku = request.Sku;
+        variant.Size = request.Size;
+        variant.Color = request.Color;
+        variant.Stock = request.Stock;
+        variant.IsActive = request.IsActive;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var dto = new ProductVariantDto
+        {
+            Id = variant.Id,
+            Sku = variant.Sku,
+            Size = variant.Size,
+            Color = variant.Color,
+            Stock = variant.Stock,
+            IsActive = variant.IsActive
+        };
+
+        return Ok(ApiResponse<ProductVariantDto>.Ok(dto));
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  DELETE /api/admin/products/:id/variants/:variantId
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Delete a variant. Defaults to soft-delete (IsActive = false).
+    /// Pass <c>?hard=true</c> for permanent deletion.
+    /// </summary>
+    [HttpDelete("{id:int}/variants/{variantId:int}")]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeleteVariant(
+        int id,
+        int variantId,
+        [FromQuery] bool hard = false,
+        CancellationToken cancellationToken = default)
+    {
+        var variant = await _context.ProductVariants
+            .FirstOrDefaultAsync(v => v.Id == variantId && v.ProductId == id, cancellationToken);
+
+        if (variant is null)
+        {
+            return NotFound(ApiResponse.Fail(new ApiError
+            {
+                Code = "VARIANT_NOT_FOUND",
+                Message = $"Variant with ID {variantId} was not found for product {id}."
+            }));
+        }
+
+        if (hard)
+        {
+            // Check if referenced by orders or cart
+            var inUse = await _context.OrderItems
+                .AnyAsync(oi => oi.ProductVariantId == variantId, cancellationToken) ||
+                await _context.CartItems
+                .AnyAsync(ci => ci.ProductVariantId == variantId, cancellationToken);
+
+            if (inUse)
+            {
+                return Conflict(ApiResponse.Fail(new ApiError
+                {
+                    Code = "VARIANT_IN_USE",
+                    Message = "Cannot permanently delete a variant that is referenced by existing orders or cart items."
+                }));
+            }
+
+            // Ensure at least one active variant remains on the product
+            var otherActiveVariants = await _context.ProductVariants
+                .AnyAsync(v => v.ProductId == id && v.Id != variantId && v.IsActive, cancellationToken);
+
+            if (!otherActiveVariants)
+            {
+                return Conflict(ApiResponse.Fail(new ApiError
+                {
+                    Code = "LAST_ACTIVE_VARIANT",
+                    Message = "Cannot delete the last active variant. Deactivate the product instead."
+                }));
+            }
+
+            _context.ProductVariants.Remove(variant);
+        }
+        else
+        {
+            // Ensure at least one active variant remains
+            var otherActiveVariants = await _context.ProductVariants
+                .AnyAsync(v => v.ProductId == id && v.Id != variantId && v.IsActive, cancellationToken);
+
+            if (!otherActiveVariants)
+            {
+                return Conflict(ApiResponse.Fail(new ApiError
+                {
+                    Code = "LAST_ACTIVE_VARIANT",
+                    Message = "Cannot deactivate the last active variant. Deactivate the product instead."
+                }));
+            }
+
+            variant.IsActive = false;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(ApiResponse.Ok());
+    }
+
+    // ═══════════════════════════════════════════════════════════
     //  Helpers
     // ═══════════════════════════════════════════════════════════
 
@@ -438,7 +666,6 @@ public class AdminProductsController : ControllerBase
             Slug = product.Slug,
             Description = product.Description,
             Price = product.Price,
-            Stock = product.Stock,
             IsActive = product.IsActive,
             CreatedAt = product.CreatedAt,
             Category = new ProductCategoryDto
@@ -454,6 +681,18 @@ public class AdminProductsController : ControllerBase
                     Id = i.Id,
                     Url = i.Url,
                     SortOrder = i.SortOrder
+                })
+                .ToList(),
+            Variants = product.Variants
+                .OrderBy(v => v.Id)
+                .Select(v => new ProductVariantDto
+                {
+                    Id = v.Id,
+                    Sku = v.Sku,
+                    Size = v.Size,
+                    Color = v.Color,
+                    Stock = v.Stock,
+                    IsActive = v.IsActive
                 })
                 .ToList()
         };

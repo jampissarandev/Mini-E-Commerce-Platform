@@ -57,13 +57,13 @@ internal static class AdminOrderMapping
     public static AdminOrderItemDto ToItem(OrderItem i) => new()
     {
         Id = i.Id,
-        ProductId = i.ProductId,
+        ProductVariantId = i.ProductVariantId,
         ProductName = i.ProductName,
         UnitPrice = i.UnitPrice,
         Quantity = i.Quantity,
-        // Live catalogue thumbnail (Product.Images[0] by SortOrder) — the
+        // Live catalogue thumbnail (Product.Images[0] via ProductVariant) — the
         // snapshot contract covers name/price only, not the image (16b).
-        ImageUrl = i.Product?.Images
+        ImageUrl = i.ProductVariant?.Product?.Images
             .OrderBy(img => img.SortOrder)
             .Select(img => img.Url)
             .FirstOrDefault() ?? string.Empty,

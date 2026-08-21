@@ -214,7 +214,7 @@ export interface AdminOrderCustomer {
 
 export interface AdminOrderItemDto {
   id: number
-  productId: number
+  productVariantId: number
   productName: string
   unitPrice: number
   quantity: number
