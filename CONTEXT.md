@@ -32,7 +32,7 @@ When the docs disagree with the code, the **code wins for behavior** and this fi
 | Term | Meaning | Avoid |
 |---|---|---|
 | **Cart** | A persistent collection of `CartItem`s tied to one `CustomerId`. One Cart per Customer. Created on first `GET /cart` (idempotent). | Don't call it a "basket" — that name is reserved for the future reservation cart (v2, ADR 0007). |
-| **CartItem** | A line in a Cart. References a `ProductVariant` (v2) or `Product` (v1). Has `Quantity` and a `UnitPrice` **snapshot at add-time**. | Don't compute `UnitPrice` on every read — it's a snapshot. The price re-validation happens at checkout, not on cart display. |
+| **CartItem** | A line in a Cart. References a `ProductVariant`. Has `Quantity` and a `UnitPrice` **snapshot at add-time**. | Don't compute `UnitPrice` on every read — it's a snapshot. The price re-validation happens at checkout, not on cart display. |
 | **Checkout** | Converting a Cart into an Order. Validates stock, charges payment, deducts stock (v1) or reserves stock (v2), creates Order, clears Cart. | Don't conflate with "Place order" button click — Checkout is the whole flow. |
 
 ## Orders and fulfillment
@@ -40,7 +40,7 @@ When the docs disagree with the code, the **code wins for behavior** and this fi
 | Term | Meaning | Avoid |
 |---|---|---|
 | **Order** | A completed checkout. One row per checkout attempt. Has `Status`, `Subtotal`, `ShippingFee`, `Total`, a shipping-address snapshot (flat `Shipping*` fields), and `Items` (each a snapshot of product name + price). v1 mutates the row through `Status` transitions. **v2 (ADR 0006, Phase 8) event-sources it.** | Don't call it a "purchase" or a "transaction" (transaction is overloaded with DB transactions). |
-| **OrderItem** | A line in an Order. Snapshots `ProductName` (or "ProductName (Size, Color)" in v2) and `UnitPrice` at order time. | Don't look up the live product on Order display — the snapshot is the truth. |
+| **OrderItem** | A line in an Order. Snapshots `ProductName` ("Name (Color, Size)" when the variant has attributes) and `UnitPrice` at order time. | Don't look up the live product on Order display — the snapshot is the truth. |
 | **OrderStatus** | The lifecycle state. v1 enum: `Pending, Paid, Shipped, Delivered, Cancelled`. **v1 semantics: `Pending` is a persisted state visible to the customer; `Paid` flips on `SaveChanges`.** **v2 (ADR 0006 + 0007): `Pending` is a transient state during reservation; only `Paid` is persisted; transitions are appended to an `OrderEvent` stream.** | Don't reuse `OrderStatus` values across contexts (e.g. "pending payment" vs "pending fulfilment" — both called `Pending` in v1, which is why v2 splits them). |
 | **Pending** (v1) | Order created, stock deducted atomically per-variant (ADR 0002), payment attempted. Visible to the customer. Flips to `Paid` on `SaveChanges` or stays `Pending` if payment fails (caller gets `400 PAYMENT_FAILED`). **v1 has no auto-expiry** — abandoned Pending orders sit in the DB until manually cleaned up. | — |
 | **Cancellation** | Admin-driven transition to `Cancelled`. v1 always restocks items (the "no-op for Pending" rule is dropped — the live controller deducts stock atomically per-variant before `SaveChanges`, so every Pending has stock to restock). v2 reserves-not-deducts, so cancellation always releases the reservation. | Don't use "cancellation" for customer abandonment of a Pending order. |
