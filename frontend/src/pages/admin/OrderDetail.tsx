@@ -5,13 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { OrderStatusBadge } from '@/components/OrderStatusBadge'
 import { OrderStatusSelect } from '@/components/admin/OrderStatusSelect'
 import { useAdminOrder } from '@/lib/useAdminOrders'
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(price)
-}
+import { formatCurrency } from '@/lib/utils'
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', {
@@ -162,11 +156,11 @@ export function AdminOrderDetail() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {formatPrice(item.unitPrice)}
+                      {formatCurrency(item.unitPrice)}
                     </td>
                     <td className="px-4 py-3 text-right">{item.quantity}</td>
                     <td className="px-4 py-3 text-right">
-                      {formatPrice(item.subtotal)}
+                      {formatCurrency(item.subtotal)}
                     </td>
                   </tr>
                 ))}
@@ -177,15 +171,15 @@ export function AdminOrderDetail() {
           <div className="mt-4 space-y-1 border-t pt-4 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>{formatPrice(order.subtotal)}</span>
+              <span>{formatCurrency(order.subtotal)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Shipping</span>
-              <span>{formatPrice(order.shippingFee)}</span>
+              <span>{formatCurrency(order.shippingFee)}</span>
             </div>
             <div className="flex justify-between text-base font-bold">
               <span>Total</span>
-              <span>{formatPrice(order.total)}</span>
+              <span>{formatCurrency(order.total)}</span>
             </div>
           </div>
         </CardContent>

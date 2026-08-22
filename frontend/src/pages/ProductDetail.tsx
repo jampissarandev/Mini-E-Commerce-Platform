@@ -5,13 +5,7 @@ import { useAddToCart } from '@/lib/useCart'
 import { Button } from '@/components/ui/button'
 import { VariantPicker } from '@/components/VariantPicker'
 import { ArrowLeft, ShoppingCart, Plus, Minus, Check } from 'lucide-react'
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(price)
-}
+import { formatCurrency } from '@/lib/utils'
 
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>()
@@ -115,7 +109,7 @@ export function ProductDetail() {
             <h1 className="text-3xl font-bold">{product.name}</h1>
           </div>
 
-          <p className="text-3xl font-bold">{formatPrice(product.price)}</p>
+          <p className="text-3xl font-bold">{formatCurrency(product.price)}</p>
 
           <div className="space-y-2">
             <h2 className="text-lg font-semibold">Description</h2>

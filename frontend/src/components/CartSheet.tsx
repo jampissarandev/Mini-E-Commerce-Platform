@@ -3,17 +3,11 @@ import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { useCart, useUpdateCartItem, useRemoveCartItem, useClearCart } from '@/lib/useCart'
+import { formatCurrency } from '@/lib/utils'
 
 interface CartSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-}
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(price)
 }
 
 export function CartSheet({ open, onOpenChange }: CartSheetProps) {
@@ -98,7 +92,7 @@ export function CartSheet({ open, onOpenChange }: CartSheetProps) {
                         </p>
                       )}
                       <p className="text-sm text-muted-foreground">
-                        {formatPrice(item.unitPrice)}
+                        {formatCurrency(item.unitPrice)}
                       </p>
                     </div>
                     <div className="flex items-center justify-between mt-1">
@@ -127,7 +121,7 @@ export function CartSheet({ open, onOpenChange }: CartSheetProps) {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">
-                          {formatPrice(item.subtotal)}
+                          {formatCurrency(item.subtotal)}
                         </span>
                         <Button
                           variant="ghost"
@@ -151,7 +145,7 @@ export function CartSheet({ open, onOpenChange }: CartSheetProps) {
           <SheetFooter>
             <div className="flex items-center justify-between mb-2 px-0">
               <span className="text-base font-semibold">Total</span>
-              <span className="text-base font-semibold">{formatPrice(total)}</span>
+              <span className="text-base font-semibold">{formatCurrency(total)}</span>
             </div>
             <div className="flex gap-2">
               <Button

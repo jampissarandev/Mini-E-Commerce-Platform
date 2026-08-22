@@ -4,13 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { OrderStatusBadge } from '@/components/OrderStatusBadge'
 import { useOrder } from '@/lib/useOrders'
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(price)
-}
+import { formatCurrency } from '@/lib/utils'
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', {
@@ -98,10 +92,10 @@ export function OrderConfirmation() {
               <div>
                 <p className="font-medium">{item.productName}</p>
                 <p className="text-sm text-muted-foreground">
-                  {formatPrice(item.unitPrice)} × {item.quantity}
+                  {formatCurrency(item.unitPrice)} × {item.quantity}
                 </p>
               </div>
-              <span className="font-medium">{formatPrice(item.subtotal)}</span>
+              <span className="font-medium">{formatCurrency(item.subtotal)}</span>
             </div>
           ))}
         </CardContent>
@@ -112,15 +106,15 @@ export function OrderConfirmation() {
         <CardContent className="p-6 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Subtotal</span>
-            <span>{formatPrice(order.subtotal)}</span>
+            <span>{formatCurrency(order.subtotal)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Shipping</span>
-            <span>{formatPrice(order.shippingFee)}</span>
+            <span>{formatCurrency(order.shippingFee)}</span>
           </div>
           <div className="flex justify-between text-lg font-semibold border-t pt-2">
             <span>Total</span>
-            <span>{formatPrice(order.total)}</span>
+            <span>{formatCurrency(order.total)}</span>
           </div>
         </CardContent>
       </Card>

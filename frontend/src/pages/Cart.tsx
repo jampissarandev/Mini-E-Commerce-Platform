@@ -3,13 +3,7 @@ import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useCart, useUpdateCartItem, useRemoveCartItem, useClearCart } from '@/lib/useCart'
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(price)
-}
+import { formatCurrency } from '@/lib/utils'
 
 export function Cart() {
   const { data: cartData, isLoading } = useCart()
@@ -88,7 +82,7 @@ export function Cart() {
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    {formatPrice(item.unitPrice)} each
+                    {formatCurrency(item.unitPrice)} each
                   </p>
                 </div>
                 <div className="flex items-center justify-between mt-2">
@@ -120,7 +114,7 @@ export function Cart() {
                     </Button>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold">{formatPrice(item.subtotal)}</span>
+                    <span className="text-sm font-semibold">{formatCurrency(item.subtotal)}</span>
                     <Button
                       variant="ghost"
                       size="icon-xs"
@@ -143,7 +137,7 @@ export function Cart() {
         <CardContent className="p-6 space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-lg font-semibold">Total</span>
-            <span className="text-lg font-bold">{formatPrice(total)}</span>
+            <span className="text-lg font-bold">{formatCurrency(total)}</span>
           </div>
           <Link to="/checkout">
             <Button className="w-full" size="lg">

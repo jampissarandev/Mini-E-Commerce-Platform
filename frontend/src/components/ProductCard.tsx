@@ -2,16 +2,10 @@ import { Link } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import type { ProductListItem } from '@/lib/types'
+import { formatCurrency } from '@/lib/utils'
 
 interface ProductCardProps {
   product: ProductListItem
-}
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(price)
 }
 
 export function ProductCard({ product }: ProductCardProps) {
@@ -35,7 +29,7 @@ export function ProductCard({ product }: ProductCardProps) {
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">{product.categoryName}</p>
             <h3 className="font-semibold text-sm leading-tight line-clamp-2">{product.name}</h3>
-            <p className="text-lg font-bold">{formatPrice(product.price)}</p>
+            <p className="text-lg font-bold">{formatCurrency(product.price)}</p>
             {product.variantCount > 1 && (
               <p className="text-xs text-muted-foreground" aria-label={`${product.variantCount} variants available`}>
                 {product.variantCount} variants

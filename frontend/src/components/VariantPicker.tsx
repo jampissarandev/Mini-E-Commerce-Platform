@@ -12,6 +12,22 @@ function uniq<T extends string | null | undefined>(values: T[]): string[] {
   return [...new Set(values.filter(Boolean) as string[])].sort()
 }
 
+// Pick the best variant from a pool: prefer one that matches the current
+// selection on the other axis AND is in stock, else the first in stock,
+// else the first of the pool (so the button never dead-ends).
+function pickMatch(
+  pool: ProductVariantDto[],
+  matchesOtherAxis: ((v: ProductVariantDto) => boolean) | null,
+): ProductVariantDto {
+  return (
+    (matchesOtherAxis
+      ? pool.find((v) => matchesOtherAxis(v) && v.stock > 0)
+      : undefined) ??
+    pool.find((v) => v.stock > 0) ??
+    pool[0]
+  )
+}
+
 export function VariantPicker({ variants, selectedId, onSelect }: VariantPickerProps) {
   if (variants.length === 0) return null
 
@@ -68,12 +84,10 @@ export function VariantPicker({ variants, selectedId, onSelect }: VariantPickerP
                   size="sm"
                   onClick={() => {
                     // Pick the first in-stock variant for this size (prefer matching current color)
-                    const match =
-                      (selected?.color
-                        ? variantsForSize.find((v) => v.color === selected.color && v.stock > 0)
-                        : undefined) ??
-                      variantsForSize.find((v) => v.stock > 0) ??
-                      variantsForSize[0]
+                    const match = pickMatch(
+                      variantsForSize,
+                      selected?.color ? (v) => v.color === selected.color : null,
+                    )
                     if (match) onSelect(match.id)
                   }}
                   aria-pressed={isSelected}
@@ -102,12 +116,10 @@ export function VariantPicker({ variants, selectedId, onSelect }: VariantPickerP
                   variant={isSelected ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => {
-                    const match =
-                      (selected?.size
-                        ? variantsForColor.find((v) => v.size === selected.size && v.stock > 0)
-                        : undefined) ??
-                      variantsForColor.find((v) => v.stock > 0) ??
-                      variantsForColor[0]
+                    const match = pickMatch(
+                      variantsForColor,
+                      selected?.size ? (v) => v.size === selected.size : null,
+                    )
                     if (match) onSelect(match.id)
                   }}
                   aria-pressed={isSelected}

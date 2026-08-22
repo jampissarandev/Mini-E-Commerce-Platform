@@ -20,13 +20,7 @@ import { usePaymentMode } from '@/lib/usePaymentMode'
 import { useAuthStore } from '@/lib/auth-store'
 import { useAddresses, useDefaultAddress } from '@/lib/useAddresses'
 import { checkoutSchema, type CheckoutValues } from '@/lib/schemas/checkout'
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(price)
-}
+import { formatCurrency } from '@/lib/utils'
 
 const SHIPPING_FEE = 5.99
 
@@ -426,7 +420,7 @@ export function Checkout() {
                     <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
                   </div>
                   <span className="text-sm font-medium whitespace-nowrap">
-                    {formatPrice(item.subtotal)}
+                    {formatCurrency(item.subtotal)}
                   </span>
                 </div>
               </div>
@@ -435,15 +429,15 @@ export function Checkout() {
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatPrice(subtotal)}</span>
+                <span>{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Shipping</span>
-                <span>{formatPrice(SHIPPING_FEE)}</span>
+                <span>{formatCurrency(SHIPPING_FEE)}</span>
               </div>
               <div className="flex justify-between text-base font-semibold">
                 <span>Total</span>
-                <span>{formatPrice(total)}</span>
+                <span>{formatCurrency(total)}</span>
               </div>
             </div>
 

@@ -12,15 +12,9 @@ import {
 import { OrderStatusBadge } from '@/components/OrderStatusBadge'
 import { Pagination } from '@/components/Pagination'
 import { useAdminOrders } from '@/lib/useAdminOrders'
+import { formatCurrency } from '@/lib/utils'
 
 const ORDER_STATUSES = ['Pending', 'Paid', 'Shipped', 'Delivered', 'Cancelled']
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(price)
-}
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', {
@@ -188,7 +182,7 @@ export function AdminOrders() {
                     </td>
                     <td className="px-4 py-3">{order.customerEmail}</td>
                     <td className="px-4 py-3 text-right">
-                      {formatPrice(order.total)}
+                      {formatCurrency(order.total)}
                     </td>
                     <td className="px-4 py-3">
                       <OrderStatusBadge status={order.status} size="sm" />

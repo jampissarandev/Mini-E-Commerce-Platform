@@ -5,13 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { OrderStatusBadge } from '@/components/OrderStatusBadge'
 import { Pagination } from '@/components/Pagination'
 import { useOrders } from '@/lib/useOrders'
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(price)
-}
+import { formatCurrency } from '@/lib/utils'
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', {
@@ -76,7 +70,7 @@ export function OrderHistory() {
 
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <p className="text-lg font-bold">{formatPrice(order.total)}</p>
+                    <p className="text-lg font-bold">{formatCurrency(order.total)}</p>
                   </div>
                   <Link to={`/orders/${order.id}`}>
                     <Button variant="outline" size="sm">
