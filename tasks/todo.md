@@ -306,3 +306,22 @@
 - [ ] Concurrent-checkout integration test exists and passes for the last unit (Task 30e)
 - [ ] ADR 0002 is marked superseded; ADR 0006 + 0007 are the canonical answer
 - [ ] `docs/adr/*` and `CONTEXT.md` updated to reflect the v2 model; the v1 model is the historical record, not the source of truth
+
+---
+
+## Decide later — Task 27 followups (deferred 2026-08-22)
+
+> Findings from the code review of the Task 27 diff (commits `79eeee8..80cef1d`). Each one was scoped out of the `db9d298` fix commit; not critical, but worth a deliberate decision before Task 27 is fully closed. The full context lives in `.scratch/handoffs/handoff-2026-08-22-review-followups.md`.
+
+- [ ] **`ProductCard` quick-add affordance — needs a default-variant policy.**
+  The 27d spec says "ProductCard (group variants) + ProductDetail (variant picker)". The group display shipped; the add-to-cart affordance dropped without a decision. `pickPreferredVariant(variants)` (extracted in `db9d298`) is the natural default — pick the first in-stock active variant, fall back to first active. If agreed, wire it into `ProductCard.tsx` and add a test that clicks quick-add on a multi-variant card and asserts the right variant id is sent to `useAddToCart`. **Open question:** should quick-add skip when all variants are out of stock, or should it navigate to `ProductDetail` instead?
+
+- [ ] **`CartItemDto.ProductId` — document the deviation from `CONTEXT.md`.**
+  `CONTEXT.md` → Cart and checkout says *"CartItem references a Variant, not a Product"*. The DTO reintroduced `ProductId` in commit `d4cd96a` (for `/products/:id` navigation — `ProductSlug` is editable per `CONTEXT.md` → Catalog). Today's handoff notes this as intentional but undocumented. Either amend `CONTEXT.md` to carve out the navigation-key exception, or add a short ADR (`docs/adr/0008-cart-item-product-id-navigation-key.md`).
+
+- [ ] **`OrderItemDto` — split size/color into separate fields.**
+  Backend `OrderItemNameFormatter` composes `"Name (Color, Size)"` correctly (pinned by 4 unit tests in `db9d298`). But `OrderItemDto.ProductName` returns only the concatenated string — the frontend can't split it (e.g. for admin re-order, "did the customer want size M or L?"). `CONTEXT.md` rule #10 ("Snapshot is the truth") saves us, but it's a one-way door. **Open question:** is the snapshot rule sufficient, or do we need `productVariantId` + `variantSize` + `variantColor` on the DTO for admin tooling?
+
+- [ ] **`AdminOrderItemDto` — expose variant SKU and attributes.**
+  Same root cause as above, on the admin path. Admin fulfilment currently shows `productName` only — no SKU, no size, no color. Easy fix once the `OrderItemDto` split is decided (the admin DTO can include the same fields).
+
