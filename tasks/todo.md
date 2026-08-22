@@ -246,13 +246,13 @@
   - [x] 26e: Wire `CheckoutRequest` to accept an `addressId` and snapshot the address onto the Order. (S)
   **Files:** `Models/Address.cs`, `Data/ApplicationDbContext.cs`, `Controllers/AddressesController.cs`, `Dtos/AddressDtos.cs`, `Controllers/OrdersController.cs`, `Dtos/OrderDtos.cs`, `frontend/src/pages/Addresses.tsx`, `frontend/src/pages/Checkout.tsx`, `frontend/src/lib/useAddresses.ts`, `frontend/src/lib/types.ts`, `frontend/src/lib/schemas/address.ts`, `frontend/src/lib/schemas/checkout.ts`
 
-- [ ] **Task 27: Add Product Variants (ADR 0003)** ⚪ Not started
+- [x] **Task 27: Add Product Variants (ADR 0003)** ✅ Shipped 2026-08-21
   > `Product` is a model; `ProductVariant` is the sellable unit with its own `Stock` and `Sku`. `CartItem` and `OrderItem` reference a Variant, not a Product.
-  - [ ] 27a: Add `ProductVariants` table (Id, ProductId, Sku, Size?, Color?, Stock, IsActive) + EF migration. Drop `Product.Stock`. (M)
-  - [ ] 27b: Update `GET /products` + `GET /products/:id` to expose variants. (M)
-  - [ ] 27c: Switch `CartItem.ProductId` → `CartItem.ProductVariantId`; same for `OrderItem`. Update `OrderItem.ProductName` snapshot to include chosen `Size`/`Color`. (M)
-  - [ ] 27d: Frontend `ProductCard` (group variants) + `ProductDetail` (variant picker: size, color). (M)
-  - [ ] 27e: Update Task 11a's atomic UPDATE to target `ProductVariants`, not `Products`. (S)
+  - [x] 27a: Add `ProductVariants` table (Id, ProductId, Sku, Size?, Color?, Stock, IsActive) + EF migration. Drop `Product.Stock`. (M)
+  - [x] 27b: Update `GET /products` + `GET /products/:id` to expose variants. (M)
+  - [x] 27c: Switch `CartItem.ProductId` → `CartItem.ProductVariantId`; same for `OrderItem`. Update `OrderItem.ProductName` snapshot to include chosen `Size`/`Color`. (M)
+  - [x] 27d: Frontend `ProductCard` (group variants) + `ProductDetail` (variant picker: size, color). (M)
+  - [x] 27e: Update Task 11a's atomic UPDATE to target `ProductVariants`, not `Products`. (S)
   **Files:** `Models/ProductVariant.cs`, `Data/ApplicationDbContext.cs`, `Controllers/ProductsController.cs`, `Controllers/CartController.cs`, `Controllers/OrdersController.cs`, `Dtos/Product/*`, `frontend/src/pages/ProductDetail.tsx`, `frontend/src/components/ProductCard.tsx`
 
 - [x] **Task 28: Add payment mock failure modes (CONTEXT.md → Payment)** ✅ Shipped 2026-07-13
@@ -266,7 +266,7 @@
 - [ ] ~~Concurrent checkouts for the last unit — exactly one succeeds (Task 24)~~ ⚪ Not started (rolled back 2026-07-13; see ADR 0002 Status)
 - [x] Refresh rotation works; concurrent refresh limited to one active token per customer (Task 25) ✅ 2026-08-20
 - [x] Customer can save, edit, delete addresses; checkout uses the address book (Task 26) ✅ Shipped 2026-08-20
-- [ ] Product variants render in catalog; cart + checkout reference variants; stock is per-variant (Task 27)
+- [x] Product variants render in catalog; cart + checkout reference variants; stock is per-variant (Task 27) ✅ 2026-08-21
 - [x] ~~Payment failure mode triggers `400 PAYMENT_FAILED` + stock restore; failure path is covered by integration test (Task 28)~~ ✅ Shipped
 - [ ] `docs/adr/*` and `CONTEXT.md` unchanged after each task lands (ADRs are the source of truth, not the implementation)
 

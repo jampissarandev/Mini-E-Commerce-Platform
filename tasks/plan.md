@@ -1684,7 +1684,7 @@ A Customer has 0..n `Address` rows with one `IsDefault`. At checkout the custome
 
 ---
 
-#### Task 24: Add Product Variants (ADR 0003)
+#### Task 24: Add Product Variants (ADR 0003) ✅ Shipped 2026-08-21
 `Product` is a model; `ProductVariant` is the sellable unit with its own `Stock` and `Sku`. `CartItem` and `OrderItem` reference a Variant, not a Product.
 
 **Sub-tasks:**
@@ -1716,7 +1716,7 @@ Extend `MockPaymentService` with `AlwaysSucceed` (default) | `AlwaysFail` | `Fai
 - [ ] ~~Concurrent checkouts for the last unit — exactly one succeeds (Task 21)~~ ⚪ Not started (rolled back 2026-07-13; see ADR 0002 Status)
 - [x] Refresh rotation works; concurrent refresh limited to one active token per customer (Task 22 → todo Task 25) ✅ 2026-08-20
 - [ ] Customer can save, edit, delete addresses; checkout uses the address book (Task 23 → todo Task 26)
-- [ ] Product variants render in catalog; cart + checkout reference variants; stock is per-variant (Task 24 → todo Task 27)
+- [x] Product variants render in catalog; cart + checkout reference variants; stock is per-variant (Task 24 → todo Task 27) ✅ 2026-08-21
 - [x] ~~Payment failure mode triggers 400 + stock restore; failure path is covered by integration test (Task 25)~~ ✅ Shipped
 - [ ] `docs/adr/*` and `../CONTEXT.md` unchanged after the tasks (ADRs are the source of truth, not the implementation)
 

@@ -25,4 +25,4 @@ A `Product` is a *model* (e.g. "Men's Crew-Neck T-Shirt"); a `ProductVariant` is
 
 Existing customers with open carts automatically re-bind to the LEGACY variant on next read; no "clear your cart" UX is required. The SKU format `LEGACY-{n}` is a smell (fulfilment will see SKUs like `LEGACY-7`) and is acceptable as a one-time cost — Phase 7 task 27a can re-SKU manually or add a one-off admin endpoint to bulk-rename.
 
-**Status (2026-07-13):** Not started. Phase 7 Task 27. ADR 0002's per-variant UPDATE is contingent on this ADR landing.
+**Status (2026-08-21):** Shipped. Phase 7 Task 27 (todo) / Task 24 (plan). ADR 0002's per-variant UPDATE landed with it (27e). The picker (27d) and cart-link followups landed 2026-08-22.

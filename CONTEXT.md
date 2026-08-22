@@ -21,8 +21,8 @@ When the docs disagree with the code, the **code wins for behavior** and this fi
 
 | Term | Meaning | Avoid |
 |---|---|---|
-| **Product** | The catalog row — a *model*. Has `Name`, `Slug`, `Description`, `Price`, `Stock`, `CategoryId`, `IsActive`. Display aggregate. | Don't say "product" when you mean the thing the customer puts in the cart — that's a Variant (see ADR 0003). |
-| **ProductVariant** | A *sellable unit*. Has `Sku` (unique), `Size?`, `Color?`, `Stock`, `IsActive`. Belongs to a Product. The cart and order reference Variants, not Products. **Future (ADR 0003, Phase 7 Task 27).** | Don't add `Stock` to Product after variants land — it lives on the Variant. |
+| **Product** | The catalog row — a *model*. Has `Name`, `Slug`, `Description`, `Price`, `CategoryId`, `IsActive`. Display aggregate. | Don't say "product" when you mean the thing the customer puts in the cart — that's a Variant (see ADR 0003). |
+| **ProductVariant** | A *sellable unit*. Has `Sku` (unique), `Size?`, `Color?`, `Stock`, `IsActive`. Belongs to a Product. The cart and order reference Variants, not Products. | Don't add `Stock` to Product after variants land — it lives on the Variant. |
 | **Category** | A tree of categories via `ParentCategoryId`. Has a unique `Slug` and a `ProductCount` (counted on the fly for active products). | Don't say "department" or "section". |
 | **ProductImage** | A child of a Product. Has `Url` and `SortOrder`. **Per-product** (not a global library). The same `Url` on two products = two rows. | Don't call it "asset" or "media" — those are storage-layer concerns, not domain. |
 | **Slug** | The URL-safe identifier of a Product. Unique. Auto-generated from `Name` on create, editable. | Don't include spaces or non-ASCII. |
@@ -42,8 +42,8 @@ When the docs disagree with the code, the **code wins for behavior** and this fi
 | **Order** | A completed checkout. One row per checkout attempt. Has `Status`, `Subtotal`, `ShippingFee`, `Total`, a shipping-address snapshot (flat `Shipping*` fields), and `Items` (each a snapshot of product name + price). v1 mutates the row through `Status` transitions. **v2 (ADR 0006, Phase 8) event-sources it.** | Don't call it a "purchase" or a "transaction" (transaction is overloaded with DB transactions). |
 | **OrderItem** | A line in an Order. Snapshots `ProductName` (or "ProductName (Size, Color)" in v2) and `UnitPrice` at order time. | Don't look up the live product on Order display — the snapshot is the truth. |
 | **OrderStatus** | The lifecycle state. v1 enum: `Pending, Paid, Shipped, Delivered, Cancelled`. **v1 semantics: `Pending` is a persisted state visible to the customer; `Paid` flips on `SaveChanges`.** **v2 (ADR 0006 + 0007): `Pending` is a transient state during reservation; only `Paid` is persisted; transitions are appended to an `OrderEvent` stream.** | Don't reuse `OrderStatus` values across contexts (e.g. "pending payment" vs "pending fulfilment" — both called `Pending` in v1, which is why v2 splits them). |
-| **Pending** (v1) | Order created, stock deducted in-memory, payment attempted. Visible to the customer. Flips to `Paid` on `SaveChanges` or stays `Pending` if payment fails (caller gets `400 PAYMENT_FAILED`). **v1 has no auto-expiry** — abandoned Pending orders sit in the DB until manually cleaned up. | — |
-| **Cancellation** | Admin-driven transition to `Cancelled`. v1 always restocks items (the "no-op for Pending" rule is dropped — the live controller deducts stock in-memory before `SaveChanges`, so every Pending has stock to restock). v2 reserves-not-deducts, so cancellation always releases the reservation. | Don't use "cancellation" for customer abandonment of a Pending order. |
+| **Pending** (v1) | Order created, stock deducted atomically per-variant (ADR 0002), payment attempted. Visible to the customer. Flips to `Paid` on `SaveChanges` or stays `Pending` if payment fails (caller gets `400 PAYMENT_FAILED`). **v1 has no auto-expiry** — abandoned Pending orders sit in the DB until manually cleaned up. | — |
+| **Cancellation** | Admin-driven transition to `Cancelled`. v1 always restocks items (the "no-op for Pending" rule is dropped — the live controller deducts stock atomically per-variant before `SaveChanges`, so every Pending has stock to restock). v2 reserves-not-deducts, so cancellation always releases the reservation. | Don't use "cancellation" for customer abandonment of a Pending order. |
 | **Abandonment** | A Pending order whose customer closed the browser / never paid. v1: row sits in the DB; manual cleanup. v2 (ADR 0007): auto-expire after N minutes; a background job releases the reservation. | Don't conflate with Cancellation. Abandonment is not a transition; cancellation is. |
 
 ## Shipping
@@ -98,7 +98,7 @@ When the docs disagree with the code, the **code wins for behavior** and this fi
 6. **Exceptions → middleware.** `ExceptionMiddleware` maps `NotFoundException → 404`, `ValidationException → 400`, `BusinessRuleException → 409`, `UnauthorizedAccessException → 401`, else `500` (no stack trace leaked).
 7. **Money is `decimal`.** Never `double` or `float`.
 8. **Timestamps are UTC.** `DateTime.UtcNow` on write. Display layer formats to local time.
-9. **v1 stock is in-memory, v2 stock is reserved.** v1 deducts `Product.Stock` in-memory before `SaveChanges`; on payment failure the EF context is discarded. v2 (ADR 0007) uses a reservation table so cancellation and abandonment have explicit semantics.
+9. **v1 stock is atomic per-variant, v2 stock is reserved.** v1 deducts `ProductVariant.Stock` via an atomic SQL `UPDATE ... SET Stock = Stock - @qty WHERE Id = @id AND Stock >= @qty` (ADR 0002) before `SaveChanges`; on payment failure the EF context is discarded. v2 (ADR 0007) uses a reservation table so cancellation and abandonment have explicit semantics.
 10. **"Snapshot" is the truth, not the source.** `OrderItem.ProductName`, `OrderItem.UnitPrice`, and the `Order.Shipping*` fields are historical fact at the time of order. Editing the source Product/Address does not retroactively change them.
 
 ---
@@ -110,7 +110,6 @@ When the docs disagree with the code, the **code wins for behavior** and this fi
 - Customer self-cancel.
 - Email / notifications.
 - Image CDN signing for production.
-- Product variants (ADR 0003 → Phase 7, Task 27).
 - Customer address book (ADR 0004 → Phase 7, Task 26; the snapshot half is shipped).
 - Silent token refresh (ADR 0005 → Phase 7, Task 25).
 - Event-sourced orders (ADR 0006 → Phase 8, v2).
