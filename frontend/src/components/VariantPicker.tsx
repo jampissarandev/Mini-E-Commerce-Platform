@@ -18,7 +18,7 @@ function uniq<T extends string | null | undefined>(values: T[]): string[] {
 function pickMatch(
   pool: ProductVariantDto[],
   matchesOtherAxis: ((v: ProductVariantDto) => boolean) | null,
-): ProductVariantDto {
+): ProductVariantDto | undefined {
   return (
     (matchesOtherAxis
       ? pool.find((v) => matchesOtherAxis(v) && v.stock > 0)
@@ -88,7 +88,7 @@ export function VariantPicker({ variants, selectedId, onSelect }: VariantPickerP
                       variantsForSize,
                       selected?.color ? (v) => v.color === selected.color : null,
                     )
-                    if (match) onSelect(match.id)
+                    if (match?.id != null) onSelect(match.id)
                   }}
                   aria-pressed={isSelected}
                   aria-label={`Size ${size}`}
@@ -120,7 +120,7 @@ export function VariantPicker({ variants, selectedId, onSelect }: VariantPickerP
                       variantsForColor,
                       selected?.size ? (v) => v.size === selected.size : null,
                     )
-                    if (match) onSelect(match.id)
+                    if (match?.id != null) onSelect(match.id)
                   }}
                   aria-pressed={isSelected}
                   aria-label={`Color ${color}`}

@@ -168,4 +168,20 @@ describe('CartSheet', () => {
     expect(laptopLink).toHaveAttribute('href', '/products/1')
     expect(mouseLink).toHaveAttribute('href', '/products/2')
   })
+
+  it('renders variant attributes in Color, Size order to match OrderItem snapshot', async () => {
+    // Pin the variant attribute rendering order to match the OrderItem
+    // snapshot format (CONTEXT.md → OrderItem): "Name (Color, Size)". The
+    // cart item render uses the same order with a different separator. The
+    // Laptop Pro fixture has size='M' and color='Black' → expected
+    // "Black · M" (color before size).
+    server.use(
+      http.get(/\/api\/cart$/, () => HttpResponse.json(mockCartDto)),
+    )
+    renderSheet()
+    const laptopRow = await screen.findByText('Laptop Pro')
+    const line = laptopRow.parentElement?.querySelector('p.text-xs')
+    expect(line).toHaveTextContent('Black · M')
+    expect(line?.textContent).not.toMatch(/^M ·/)
+  })
 })

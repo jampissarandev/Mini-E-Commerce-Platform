@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { VariantAttributes } from '@/components/VariantAttributes'
 import { useCart, useUpdateCartItem, useRemoveCartItem, useClearCart } from '@/lib/useCart'
 import { formatCurrency } from '@/lib/utils'
 
@@ -76,11 +77,7 @@ export function Cart() {
                   >
                     {item.productName}
                   </Link>
-                  {(item.size || item.color) && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {[item.size, item.color].filter(Boolean).join(' · ')}
-                    </p>
-                  )}
+                  <VariantAttributes size={item.size} color={item.color} className="mt-0.5" />
                   <p className="text-sm text-muted-foreground mt-0.5">
                     {formatCurrency(item.unitPrice)} each
                   </p>

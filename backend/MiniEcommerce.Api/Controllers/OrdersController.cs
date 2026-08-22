@@ -238,7 +238,7 @@ public class OrdersController : ControllerBase
             Items = cart.Items.Select(ci => new OrderItem
             {
                 ProductVariantId = ci.ProductVariantId,
-                ProductName = FormatOrderItemName(ci.ProductVariant.Product, ci.ProductVariant),
+                ProductName = OrderItemNameFormatter.Format(ci.ProductVariant.Product, ci.ProductVariant),
                 UnitPrice = ci.UnitPrice,
                 Quantity = ci.Quantity
             }).ToList()
@@ -342,22 +342,6 @@ public class OrdersController : ControllerBase
     }
 
     // ─────────────── Private helpers ───────────────
-
-    /// <summary>
-    /// Formats the order item product name per ADR 0003:
-    /// "Product Name" for no-attribute variants,
-    /// "Product Name (Color, Size)" for ones with attributes.
-    /// </summary>
-    private static string FormatOrderItemName(Product product, ProductVariant variant)
-    {
-        var parts = new List<string>();
-        if (!string.IsNullOrEmpty(variant.Color)) parts.Add(variant.Color);
-        if (!string.IsNullOrEmpty(variant.Size)) parts.Add(variant.Size);
-
-        return parts.Count > 0
-            ? $"{product.Name} ({string.Join(", ", parts)})"
-            : product.Name;
-    }
 
     private static OrderDto MapOrderToDto(Order order)
     {

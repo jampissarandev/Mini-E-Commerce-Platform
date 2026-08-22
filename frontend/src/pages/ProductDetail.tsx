@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { VariantPicker } from '@/components/VariantPicker'
 import { ArrowLeft, ShoppingCart, Plus, Minus, Check } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { pickPreferredVariant } from '@/lib/variant-utils'
 
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>()
@@ -22,15 +23,10 @@ export function ProductDetail() {
   const product = data?.data
   const addToCart = useAddToCart()
 
-  // Derive the preferred variant (first in-stock, else first active) from the
-  // current product. Computed synchronously on every render so it's available
-  // on first paint of the Stock line.
-  const preferredVariantId = (() => {
-    const variants = product?.variants ?? []
-    if (variants.length === 0) return null
-    const active = variants.filter((v) => v.isActive)
-    return (active.find((v) => v.stock > 0) ?? active[0] ?? null)?.id ?? null
-  })()
+  // Derive the preferred variant synchronously on every render so it's
+  // available on first paint of the Stock line. The picker is also reset
+  // when navigating to a different product (see below).
+  const preferredVariantId = pickPreferredVariant(product?.variants ?? [])?.id ?? null
 
   // Reset variant selection and quantity when navigating to a different
   // product. This is the React-blessed "set state during render" pattern for
@@ -67,6 +63,15 @@ export function ProductDetail() {
   }
 
   const mainImage = product.images[0]
+  // The Stock line falls back to the preferred variant until the user picks
+  // one explicitly; the Add-to-Cart block requires an explicit selection.
+  const effectiveVariantId = selectedVariantId ?? preferredVariantId
+  const selectedVariant =
+    effectiveVariantId == null
+      ? undefined
+      : product.variants.find((v) => v.id === effectiveVariantId)
+  const outOfStock = product.variants.every((v) => !v.isActive || v.stock === 0)
+  const canAdd = selectedVariantId != null && selectedVariant !== undefined && selectedVariant.stock > 0
 
   return (
     <div className="space-y-6">
@@ -130,54 +135,41 @@ export function ProductDetail() {
 
           {/* Stock for selected variant — also render synchronously on first paint
               by falling back to preferredVariantId when selectedVariantId hasn't settled yet */}
-          {(() => {
-            const effectiveId = selectedVariantId ?? preferredVariantId
-            const selected = product.variants.find((v) => v.id === effectiveId)
-            const stock = selected?.stock ?? 0
-            const outOfStock = product.variants.every((v) => !v.isActive || v.stock === 0)
-            if (outOfStock) {
-              return <p className="text-sm font-medium text-destructive">Out of stock</p>
-            }
-            if (!selected) return null
-            return (
-              <p className="text-sm text-muted-foreground">
-                Stock: <span className="font-medium text-foreground">{stock} in stock</span>
-              </p>
-            )
-          })()}
+          {outOfStock ? (
+            <p className="text-sm font-medium text-destructive">Out of stock</p>
+          ) : selectedVariant ? (
+            <p className="text-sm text-muted-foreground">
+              Stock: <span className="font-medium text-foreground">{selectedVariant.stock} in stock</span>
+            </p>
+          ) : null}
 
           {/* Add to Cart — requires a selected in-stock variant */}
-          {(() => {
-            const selected = product.variants.find((v) => v.id === selectedVariantId)
-            const stock = selected?.stock ?? 0
-            const canAdd = selected !== undefined && stock > 0
-            if (!canAdd) return null
-            return (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium">Quantity:</span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="icon-xs"
-                      aria-label="Decrease quantity"
-                      onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                      disabled={quantity <= 1}
-                    >
-                      <Minus className="h-3 w-3" />
-                    </Button>
-                    <span className="w-10 text-center text-sm font-medium">{quantity}</span>
-                    <Button
-                      variant="outline"
-                      size="icon-xs"
-                      aria-label="Increase quantity"
-                      onClick={() => setQuantity((q) => Math.min(stock, q + 1))}
-                      disabled={quantity >= stock}
-                    >
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                  </div>
+          {canAdd && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium">Quantity:</span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon-xs"
+                    aria-label="Decrease quantity"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    disabled={quantity <= 1}
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <span className="w-10 text-center text-sm font-medium">{quantity}</span>
+                  <Button
+                    variant="outline"
+                    size="icon-xs"
+                    aria-label="Increase quantity"
+                    onClick={() => setQuantity((q) => Math.min(selectedVariant.stock, q + 1))}
+                    disabled={quantity >= selectedVariant.stock}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
                 </div>
+              </div>
                 <Button
                   size="lg"
                   className="w-full"
@@ -208,8 +200,7 @@ export function ProductDetail() {
                   )}
                 </Button>
               </div>
-            )
-          })()}
+          )}
         </div>
       </div>
     </div>

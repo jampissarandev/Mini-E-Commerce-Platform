@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
+import { VariantAttributes } from '@/components/VariantAttributes'
 import { useCart, useUpdateCartItem, useRemoveCartItem, useClearCart } from '@/lib/useCart'
 import { formatCurrency } from '@/lib/utils'
 
@@ -86,11 +87,7 @@ export function CartSheet({ open, onOpenChange }: CartSheetProps) {
                       >
                         {item.productName}
                       </Link>
-                      {(item.size || item.color) && (
-                        <p className="text-xs text-muted-foreground">
-                          {[item.size, item.color].filter(Boolean).join(' · ')}
-                        </p>
-                      )}
+                      <VariantAttributes size={item.size} color={item.color} />
                       <p className="text-sm text-muted-foreground">
                         {formatCurrency(item.unitPrice)}
                       </p>
