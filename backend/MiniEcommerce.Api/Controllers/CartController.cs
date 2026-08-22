@@ -272,19 +272,7 @@ public class CartController : ControllerBase
             Id = cart.Id,
             CreatedAt = cart.CreatedAt,
             UpdatedAt = cart.UpdatedAt,
-            Items = items.Select(ci => new CartItemDto
-            {
-                Id = ci.Id,
-                ProductId = ci.ProductVariant.Product.Id,
-                ProductVariantId = ci.ProductVariantId,
-                ProductName = ci.ProductVariant.Product.Name,
-                ProductSlug = ci.ProductVariant.Product.Slug,
-                Size = ci.ProductVariant.Size,
-                Color = ci.ProductVariant.Color,
-                ImageUrl = ci.ProductVariant.Product.Images.OrderBy(i => i.SortOrder).Select(i => i.Url).FirstOrDefault() ?? string.Empty,
-                UnitPrice = ci.UnitPrice,
-                Quantity = ci.Quantity
-            }).ToList()
+            Items = items.Select(ci => MapCartItemToDto(ci, ci.ProductVariant)).ToList()
         };
     }
 
