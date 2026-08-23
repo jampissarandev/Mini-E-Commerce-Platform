@@ -321,6 +321,73 @@ public class OrdersControllerTests : IAsyncLifetime
         orderItem.Subtotal.Should().Be(orderItem.UnitPrice * 2);
     }
 
+    [Fact]
+    public async Task Checkout_WithVariantHavingColorAndSize_OrderItemDtoCarriesSizeAndColor()
+    {
+        // ADR 0008: variant Size + Color are snapshotted onto OrderItemDto so
+        // OrderHistory/OrderConfirmation can render them without parsing the
+        // ProductName string.
+        var tshirtProductId = await _factory.SeedVariantsWithAttributesAsync();
+        var blackMVariantId = await GetVariantIdForSkuAsync(tshirtProductId, "TS-BLK-M");
+
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "order-snapshot-attrs@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductVariantId = blackMVariantId,
+            Quantity = 1
+        });
+
+        var response = await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest());
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<OrderDto>>(Json);
+        var orderItem = body!.Data!.Items.Should().ContainSingle().Which;
+
+        orderItem.Size.Should().Be("M", "ADR 0008: Size must be snapshotted from the variant");
+        orderItem.Color.Should().Be("Black", "ADR 0008: Color must be snapshotted from the variant");
+        orderItem.ProductName.Should().Be("Classic T-Shirt (Black, M)");
+    }
+
+    [Fact]
+    public async Task Checkout_WithLegacyVariant_NoAttributes_OrderItemDtoFieldsAreNull()
+    {
+        // Legacy variants (LEGACY-{id}) have no Color/Size. Snapshot fields
+        // must be null — not empty string — per CONTEXT.md → ProductVariant
+        // (null is the canonical "attribute not present" signal).
+        var variantId = _variantIds[0]; // LEGACY variant from SeedCatalogDataAsync
+
+        var client = _factory.CreateClient();
+        var token = await RegisterAndLoginAsync(client, "order-snapshot-legacy@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductVariantId = variantId,
+            Quantity = 1
+        });
+
+        var response = await client.PostAsJsonAsync("/api/orders", ValidCheckoutRequest());
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<OrderDto>>(Json);
+        var orderItem = body!.Data!.Items.Should().ContainSingle().Which;
+
+        orderItem.Size.Should().BeNull();
+        orderItem.Color.Should().BeNull();
+    }
+
+    // Helper used by ADR 0008 snapshot tests.
+    private async Task<int> GetVariantIdForSkuAsync(int productId, string sku)
+    {
+        using var context = _factory.CreateDbContext();
+        var variant = await context.ProductVariants
+            .FirstAsync(v => v.ProductId == productId && v.Sku == sku);
+        return variant.Id;
+    }
+
     // ─────────────── GET /api/orders ───────────────
 
     [Fact]

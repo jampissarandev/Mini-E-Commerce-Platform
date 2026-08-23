@@ -10,7 +10,7 @@ namespace MiniEcommerce.Api.Controllers;
 /// upcoming status-update endpoints (15a/15b/15c) share one projection
 /// and any future field change touches one place.
 /// </summary>
-internal static class AdminOrderMapping
+public static class AdminOrderMapping
 {
     public static AdminOrderListItem ToListItem(Order o) => new()
     {
@@ -61,6 +61,15 @@ internal static class AdminOrderMapping
         ProductName = i.ProductName,
         UnitPrice = i.UnitPrice,
         Quantity = i.Quantity,
+        // ADR 0008: snapshotted variant attributes on the OrderItem row.
+        // Null for legacy variants (no Color/Size on ProductVariant).
+        Size = i.Size,
+        Color = i.Color,
+        // ADR 0008: Sku is admin-only (warehouse fulfilment). Read from the
+        // ProductVariant navigation property at mapping time — Sku is a
+        // stable inventory identifier and not snapshotted onto the OrderItem
+        // row.
+        Sku = i.ProductVariant?.Sku ?? string.Empty,
         // Live catalogue thumbnail (Product.Images[0] via ProductVariant) — the
         // snapshot contract covers name/price only, not the image (16b).
         ImageUrl = i.ProductVariant?.Product?.Images

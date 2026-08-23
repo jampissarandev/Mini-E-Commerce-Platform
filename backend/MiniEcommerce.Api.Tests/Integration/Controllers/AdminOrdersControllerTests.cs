@@ -457,6 +457,57 @@ public class AdminOrdersControllerTests : IAsyncLifetime
         detail.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(5));
     }
 
+    [Fact]
+    public async Task GetAdminOrderById_ExposesSizeColorAndSkuOnItems()
+    {
+        // ADR 0008: admin OrderItemDto exposes Size + Color (snapshotted on
+        // the OrderItem row) and Sku (read from ProductVariant.Sku at mapping
+        // time). This is the warehouse fulfilment path.
+        var tshirtProductId = await _factory.SeedVariantsWithAttributesAsync();
+        int blackMVariantId;
+        using (var context = _factory.CreateDbContext())
+        {
+            blackMVariantId = context.ProductVariants
+                .First(v => v.ProductId == tshirtProductId && v.Sku == "TS-BLK-M").Id;
+        }
+
+        var client = _factory.CreateClient();
+
+        // Customer checks out against the Black/M variant
+        var userToken = await RegisterAndLoginAsync(client, "admin-attrs-customer@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+        await client.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+        {
+            ProductVariantId = blackMVariantId,
+            Quantity = 1
+        });
+        var checkoutResponse = await client.PostAsJsonAsync("/api/orders", new CheckoutRequest
+        {
+            FullName = "Jane Doe",
+            Street = "123 Test Street",
+            City = "Testville",
+            PostalCode = "12345",
+            Country = "USA",
+            Phone = "+1-555-0100"
+        });
+        checkoutResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var checkoutBody = await checkoutResponse.Content.ReadFromJsonAsync<ApiResponse<OrderDto>>(Json);
+        var orderId = checkoutBody!.Data!.Id;
+
+        // Admin reads the order detail
+        var adminToken = await CreateAdminAndLoginAsync(client, "admin-attrs-admin@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var response = await client.GetAsync($"/api/admin/orders/{orderId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<AdminOrderDetail>>(Json);
+        var item = body!.Data!.Items.Should().ContainSingle().Which;
+
+        item.Size.Should().Be("M", "ADR 0008: Size snapshotted from variant");
+        item.Color.Should().Be("Black", "ADR 0008: Color snapshotted from variant");
+        item.Sku.Should().Be("TS-BLK-M", "ADR 0008: Sku read from variant at mapping time (admin-only)");
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  GET /api/admin/orders/{id} — Not found
     // ═══════════════════════════════════════════════════════════

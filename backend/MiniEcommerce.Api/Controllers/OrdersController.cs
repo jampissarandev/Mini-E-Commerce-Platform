@@ -195,6 +195,11 @@ public class OrdersController : ControllerBase
             {
                 ProductVariantId = ci.ProductVariantId,
                 ProductName = OrderItemNameFormatter.Format(ci.ProductVariant.Product, ci.ProductVariant),
+                // ADR 0008: snapshot variant attributes onto the OrderItem row
+                // so OrderHistory/OrderConfirmation can render them without
+                // parsing the ProductName string.
+                Size = ci.ProductVariant.Size,
+                Color = ci.ProductVariant.Color,
                 UnitPrice = ci.UnitPrice,
                 Quantity = ci.Quantity
             }).ToList()
@@ -321,6 +326,11 @@ public class OrdersController : ControllerBase
                 Id = i.Id,
                 ProductVariantId = i.ProductVariantId,
                 ProductName = i.ProductName,
+                // ADR 0008: split fields for programmatic variant display.
+                // Snapshotted on the OrderItem row at checkout; null when the
+                // variant had no Size/Color attribute.
+                Size = i.Size,
+                Color = i.Color,
                 UnitPrice = i.UnitPrice,
                 Quantity = i.Quantity
             }).ToList()

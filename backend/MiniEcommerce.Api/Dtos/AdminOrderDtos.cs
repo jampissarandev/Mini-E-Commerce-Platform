@@ -119,6 +119,29 @@ public record AdminOrderItemDto
     [SwaggerSchema("Product name snapshot at order time.")]
     public string ProductName { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Snapshotted variant size at order time (ADR 0008). Null when the
+    /// chosen variant had no <c>Size</c> attribute.
+    /// </summary>
+    [SwaggerSchema("Variant size snapshot at order time (ADR 0008). Null when the variant has no Size attribute.")]
+    public string? Size { get; init; }
+
+    /// <summary>
+    /// Snapshotted variant color at order time (ADR 0008). Null when the
+    /// chosen variant had no <c>Color</c> attribute.
+    /// </summary>
+    [SwaggerSchema("Variant color snapshot at order time (ADR 0008). Null when the variant has no Color attribute.")]
+    public string? Color { get; init; }
+
+    /// <summary>
+    /// Variant SKU at mapping time (ADR 0008). Admin-only — used for warehouse
+    /// fulfilment. Read from <c>ProductVariant.Sku</c> at admin read time;
+    /// not snapshotted onto the <c>OrderItem</c> row because <c>Sku</c> is a
+    /// stable inventory identifier.
+    /// </summary>
+    [SwaggerSchema("Variant SKU for warehouse fulfilment (ADR 0008). Admin-only.")]
+    public string Sku { get; init; } = string.Empty;
+
     [SwaggerSchema("Unit price snapshot at order time.")]
     public decimal UnitPrice { get; init; }
 

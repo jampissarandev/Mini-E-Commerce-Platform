@@ -164,4 +164,72 @@ public static class DbContextExtensions
             await context.SaveChangesAsync();
         }
     }
+
+    /// <summary>
+    /// Augments the catalog seed with a single product ("Classic T-Shirt")
+    /// that has three real variants with Size + Color + Sku attributes. Use
+    /// this in tests that need to exercise variant attribute snapshotting
+    /// (ADR 0008) — the default <see cref="SeedCatalogDataAsync"/> produces
+    /// LEGACY variants with no attributes.
+    ///
+    /// Returns the id of the product that owns the variants. Idempotent:
+    /// safe to call once per test class after <see cref="SeedCatalogDataAsync"/>.
+    /// </summary>
+    public static async Task<int> SeedVariantsWithAttributesAsync(this ApiFactory factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        // Find the Clothing category and the existing Classic T-Shirt product
+        // (already seeded by SeedCatalogDataAsync).
+        var tshirt = await context.Products
+            .FirstOrDefaultAsync(p => p.Slug == "classic-t-shirt")
+            ?? throw new InvalidOperationException(
+                "SeedVariantsWithAttributesAsync: Classic T-Shirt not seeded. " +
+                "Call SeedCatalogDataAsync first.");
+
+        if (await context.ProductVariants.AnyAsync(v => v.ProductId == tshirt.Id && v.Sku != $"LEGACY-{tshirt.Id}"))
+        {
+            // Already augmented in a previous test — return the product id.
+            return tshirt.Id;
+        }
+
+        // Replace the LEGACY default variant with real attributed variants.
+        // Three variants = enough to test pickPreferredVariant fallback semantics
+        // (first in-stock, first active) without being noisy.
+        var legacy = await context.ProductVariants.FirstAsync(v => v.ProductId == tshirt.Id);
+        context.ProductVariants.Remove(legacy);
+
+        context.ProductVariants.AddRange(
+            new ProductVariant
+            {
+                ProductId = tshirt.Id,
+                Sku = "TS-BLK-M",
+                Size = "M",
+                Color = "Black",
+                Stock = 50,
+                IsActive = true,
+            },
+            new ProductVariant
+            {
+                ProductId = tshirt.Id,
+                Sku = "TS-WHT-L",
+                Size = "L",
+                Color = "White",
+                Stock = 30,
+                IsActive = true,
+            },
+            new ProductVariant
+            {
+                ProductId = tshirt.Id,
+                Sku = "TS-BLK-S",
+                Size = "S",
+                Color = "Black",
+                Stock = 0, // OOS — exercises the "all-OOS → navigate to detail" frontend path
+                IsActive = true,
+            });
+
+        await context.SaveChangesAsync();
+        return tshirt.Id;
+    }
 }
