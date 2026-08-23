@@ -39,7 +39,6 @@ function renderCard(product: ProductListItem = mockProduct) {
           <Route path="/products" element={<ProductCard product={product} />} />
           <Route path="/products/:id" element={<LocationProbe />} />
         </Routes>
-        <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>,
   )
@@ -122,14 +121,16 @@ describe('ProductCard', () => {
 
   // ─────────────── Quick-add (ADR 0008 Phase C) ───────────────
 
-  it('shows a single "Add to cart" button regardless of variant count', () => {
+  it('shows a single "Add to cart" button on multi-variant cards', () => {
     renderCard({ ...mockProduct, variantCount: 3 })
     expect(screen.getByRole('button', { name: /add to cart/i })).toBeInTheDocument()
     expect(screen.queryByText(/view options/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/view product/i)).not.toBeInTheDocument()
+  })
 
+  it('shows a single "Add to cart" button on single-variant cards', () => {
     renderCard({ ...mockProduct, variantCount: 1 })
-    expect(screen.getAllByRole('button', { name: /add to cart/i }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /add to cart/i })).toBeInTheDocument()
   })
 
   it('quick-add sends the preferred variant id with quantity 1', async () => {
@@ -180,7 +181,7 @@ describe('ProductCard', () => {
 
     // Navigated to detail (probe shows /products/1) and nothing was added.
     await waitFor(() => {
-      expect(screen.getAllByTestId('location-probe')[0]).toHaveTextContent('/products/1')
+      expect(screen.getByTestId('location-probe')).toHaveTextContent('/products/1')
     })
     expect(cartPostBodies).toHaveLength(0)
   })

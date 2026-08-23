@@ -37,7 +37,7 @@ public class ProductsControllerTests : IAsyncLifetime
     // ─────────────── GET /api/products ───────────────
 
     [Fact]
-    public async Task GetProducts_MultiVariantProduct_CarriesIdAndStockSummaryInVariantIdOrder()
+    public async Task GetProducts_MultiVariantProduct_CarriesIdAndStockSummary()
     {
         // Arrange — Classic T-Shirt gets three active variants with known
         // stocks (50 / 30 / 0) from SeedVariantsWithAttributesAsync.
@@ -56,24 +56,39 @@ public class ProductsControllerTests : IAsyncLifetime
 
         // Wire shape: one entry per active variant, carrying only id + stock.
         // Expected stocks are the seed literals (independent source of truth),
-        // not recomputed from the entity.
+        // not recomputed from the entity. Asserted as a set so this test does
+        // not couple to ordering — see _OrdersVariantsByIdAscending for that.
         tshirt.Variants.Should().HaveCount(3);
-        tshirt.Variants.Select(v => v.Stock).Should().Equal(50, 30, 0);
+        tshirt.Variants.Select(v => v.Stock).Should().BeEquivalentTo(new[] { 50, 30, 0 });
+    }
+
+    [Fact]
+    public async Task GetProducts_MultiVariantProduct_OrdersVariantsByIdAscending()
+    {
+        // Arrange — pin wire order against DB Id order (independent of the
+        // stocks asserted in the shape test).
+        var tshirtId = await _factory.SeedVariantsWithAttributesAsync();
+        var client = _factory.CreateClient();
+
+        // Act
+        var response = await client.GetAsync("/api/products");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ApiResponse<List<ProductListItem>>>(Json);
+        var tshirt = body!.Data!.Should().ContainSingle(p => p.Id == tshirtId).Subject;
 
         // Ordering matters: pickPreferredVariant takes the first entry, so the
         // wire order must be deterministic (variant Id ascending — same rule
         // as the detail endpoint).
-        int[] wireIds;
-        using (var context = _factory.CreateDbContext())
-        {
-            wireIds = tshirt.Variants.Select(v => v.Id).ToArray();
-            var dbIdsOrdered = await context.ProductVariants
-                .Where(v => v.ProductId == tshirtId)
-                .OrderBy(v => v.Id)
-                .Select(v => v.Id)
-                .ToArrayAsync();
-            wireIds.Should().Equal(dbIdsOrdered);
-        }
+        using var context = _factory.CreateDbContext();
+        var dbIdsOrdered = await context.ProductVariants
+            .Where(v => v.ProductId == tshirtId)
+            .OrderBy(v => v.Id)
+            .Select(v => v.Id)
+            .ToArrayAsync();
+
+        tshirt.Variants.Select(v => v.Id).Should().Equal(dbIdsOrdered);
     }
 
     [Fact]

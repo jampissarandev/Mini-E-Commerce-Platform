@@ -1,5 +1,5 @@
 import { renderHook, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, type UseQueryResult } from '@tanstack/react-query'
 import { http, HttpResponse, delay } from 'msw'
 import { describe, expect, it, beforeEach } from 'vitest'
 import { server } from '@/test/server'
@@ -188,9 +188,11 @@ describe('useAddToCart optimistic update', () => {
     )
   }
 
-  function itemCount(result: { cart: { data?: ApiResponse<CartDto> } }): number {
+  type CartQueryResult = UseQueryResult<ApiResponse<CartDto>, Error>
+
+  function itemCount(cart: CartQueryResult): number {
     return (
-      result.cart.data?.data.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0
+      cart.data?.data.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0
     )
   }
 
@@ -208,14 +210,14 @@ describe('useAddToCart optimistic update', () => {
     await waitFor(() => {
       expect(result.current.cart.isSuccess).toBe(true)
     })
-    expect(itemCount(result.current)).toBe(2)
+    expect(itemCount(result.current.cart)).toBe(2)
 
     result.current.addToCart.mutate({ productVariantId: 11, quantity: 3 })
 
     // Optimistic: count shows 2 + 3 = 5 while the POST is in flight.
     await waitFor(
       () => {
-        expect(itemCount(result.current)).toBe(5)
+        expect(itemCount(result.current.cart)).toBe(5)
       },
       { timeout: 1000 },
     )
@@ -249,7 +251,7 @@ describe('useAddToCart optimistic update', () => {
     // Optimistic bump visible while the request is in flight…
     await waitFor(
       () => {
-        expect(itemCount(result.current)).toBe(5)
+        expect(itemCount(result.current.cart)).toBe(5)
       },
       { timeout: 1000 },
     )
@@ -258,6 +260,6 @@ describe('useAddToCart optimistic update', () => {
     await waitFor(() => {
       expect(result.current.addToCart.isError).toBe(true)
     })
-    expect(itemCount(result.current)).toBe(2)
+    expect(itemCount(result.current.cart)).toBe(2)
   })
 })
