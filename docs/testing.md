@@ -20,6 +20,36 @@ npm run test:coverage       # text + html coverage report
 
 Both must be green before every commit.
 
+### Pre-push local verify checklist
+
+CI runs `npm ci && npm run lint && npm run test:run` for the frontend, so a
+local pre-push that skips `npm run lint` (or only runs `tsc -b`) can ship a
+build that breaks the pipeline. Run this exact sequence before `git push`:
+
+```bash
+# Backend (one command covers it)
+cd backend
+dotnet test
+
+# Frontend (all four steps — do NOT skip lint or tsc --force)
+cd frontend
+npm run lint
+npx tsc -b --force
+npm run test:run
+npm run build
+```
+
+> **Why `tsc -b --force` and not just `tsc -b`?**
+> The incremental cache can leave files un-checked if nothing in their
+> dependency graph changed. A new strictness flag, or a fresh strict
+> `noUncheckedIndexedAccess` site, can slip past a clean `tsc -b` and only
+> surface under `--force`. Cost of skipping it: one red CI run. Lesson from
+> the 2026-08-22 `pickMatch` incident.
+
+> **Why both `npm run test:run` and `npm run build`?**
+> Vitest doesn't run the Vite production build, so a TS error that only
+> trips at build time (rare but real) can land in CI otherwise.
+
 ---
 
 ## Backend (xUnit)
@@ -152,3 +182,8 @@ Forbidden:
 2. `npm ci && npm run lint && npm run test:run` (frontend)
 
 Both must pass to merge. See [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) for the current pipeline.
+
+> The pre-push local checklist above is the explicit superset of CI's
+> commands. Skipping any of them costs at least one red CI run; the lint
+> step alone has caught two regressions that `tsc -b` + vitest missed
+> (round-4 followup session, 2026-08-22).
