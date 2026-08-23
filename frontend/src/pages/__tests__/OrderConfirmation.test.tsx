@@ -25,6 +25,8 @@ const mockOrderDto = {
       id: 1,
       productVariantId: 10,
       productName: 'Laptop Pro',
+      size: 'M',
+      color: 'Black',
       unitPrice: 1299.99,
       quantity: 2,
       subtotal: 2599.98,
@@ -33,6 +35,8 @@ const mockOrderDto = {
       id: 2,
       productVariantId: 11,
       productName: 'Wireless Mouse',
+      size: null,
+      color: null,
       unitPrice: 49.99,
       quantity: 1,
       subtotal: 49.99,
@@ -117,6 +121,33 @@ describe('OrderConfirmation page', () => {
     renderOrderConfirmation()
     await screen.findByText('Laptop Pro')
     expect(screen.getByRole('link', { name: /view my orders/i })).toHaveAttribute('href', '/orders')
+  })
+
+  // ─────────────── Variant attributes (ADR 0008 Phase C, Q7) ───────────────
+
+  it('renders the snapshot size and color from the split fields, not the name string', async () => {
+    renderOrderConfirmation()
+    await screen.findByText('Laptop Pro')
+    // <VariantAttributes> renders "Color · Size" for the attributed item.
+    expect(screen.getByText('Black · M')).toBeInTheDocument()
+  })
+
+  it('renders no attribute line for legacy items without snapshot attributes', async () => {
+    // Override with an all-legacy order (both items null attrs).
+    server.use(
+      http.get(/\/api\/orders\/42$/, () =>
+        HttpResponse.json({
+          success: true,
+          data: {
+            ...mockOrderDto,
+            items: mockOrderDto.items.map((item) => ({ ...item, size: null, color: null })),
+          },
+        }),
+      ),
+    )
+    renderOrderConfirmation()
+    await screen.findByText('Laptop Pro')
+    expect(screen.queryByText(/·/)).not.toBeInTheDocument()
   })
 
   it('shows loading state while fetching order', () => {

@@ -20,8 +20,8 @@ function createWrapper() {
 const mockProductsResponse = {
   success: true,
   data: [
-    { id: 1, name: 'Laptop', slug: 'laptop', price: 999.99, imageUrl: '/images/laptop.jpg', categoryName: 'Electronics', variantCount: 2 },
-    { id: 2, name: 'Headphones', slug: 'headphones', price: 49.99, imageUrl: '/images/headphones.jpg', categoryName: 'Electronics', variantCount: 1 },
+    { id: 1, name: 'Laptop', slug: 'laptop', price: 999.99, imageUrl: '/images/laptop.jpg', categoryName: 'Electronics', variantCount: 2, variants: [{ id: 10, stock: 10 }, { id: 11, stock: 0 }] },
+    { id: 2, name: 'Headphones', slug: 'headphones', price: 49.99, imageUrl: '/images/headphones.jpg', categoryName: 'Electronics', variantCount: 1, variants: [{ id: 20, stock: 5 }] },
   ],
   meta: { page: 1, pageSize: 10, totalCount: 2, totalPages: 1 },
 }

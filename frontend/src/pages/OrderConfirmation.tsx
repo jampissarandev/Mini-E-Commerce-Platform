@@ -3,6 +3,7 @@ import { CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { OrderStatusBadge } from '@/components/OrderStatusBadge'
+import { VariantAttributes } from '@/components/VariantAttributes'
 import { useOrder } from '@/lib/useOrders'
 import { formatCurrency } from '@/lib/utils'
 
@@ -91,6 +92,9 @@ export function OrderConfirmation() {
             <div key={item.id} className="flex items-center justify-between py-2 border-b last:border-0">
               <div>
                 <p className="font-medium">{item.productName}</p>
+                {/* Snapshot attributes (ADR 0008) — read the split fields
+                    directly; renders nothing for legacy orders. */}
+                <VariantAttributes size={item.size} color={item.color} />
                 <p className="text-sm text-muted-foreground">
                   {formatCurrency(item.unitPrice)} × {item.quantity}
                 </p>

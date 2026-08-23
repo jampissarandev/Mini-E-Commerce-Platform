@@ -29,6 +29,14 @@ export interface ProductVariantDto {
   isActive: boolean
 }
 
+// Minimal per-variant summary carried on the catalog list item (ADR 0008
+// Phase C): just enough for ProductCard quick-add. Full variant detail
+// (sku/size/color/isActive) stays on ProductDetailDto.
+export interface ProductVariantSummaryDto {
+  id: number
+  stock: number
+}
+
 export interface ProductListItem {
   id: number
   name: string
@@ -37,6 +45,7 @@ export interface ProductListItem {
   imageUrl: string
   categoryName: string
   variantCount: number
+  variants: ProductVariantSummaryDto[]
 }
 
 export interface ProductDetailDto {
@@ -187,6 +196,10 @@ export interface OrderItemDto {
   id: number
   productVariantId: number
   productName: string
+  // Snapshot attributes at order time (ADR 0008) — null for legacy orders
+  // placed before variants carried Size/Color.
+  size?: string | null
+  color?: string | null
   unitPrice: number
   quantity: number
   subtotal: number

@@ -1,17 +1,34 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import type { ProductListItem } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
+import { useAddToCart } from '@/lib/useCart'
+import { pickPreferredVariant } from '@/lib/variant-utils'
 
 interface ProductCardProps {
   product: ProductListItem
 }
 
 export function ProductCard({ product }: ProductCardProps) {
+  const navigate = useNavigate()
+  const addToCart = useAddToCart()
+
+  // Quick-add (ADR 0008 Phase C): add the preferred variant when it has
+  // stock; navigate to the detail page when every variant is OOS (Q4 —
+  // never disable the button) or the summary is missing (stale cache).
+  function handleQuickAdd() {
+    const preferred = pickPreferredVariant(product.variants ?? [])
+    if (!preferred || preferred.stock === 0) {
+      navigate(`/products/${product.id}`)
+      return
+    }
+    addToCart.mutate({ productVariantId: preferred.id, quantity: 1 })
+  }
+
   return (
-    <Link to={`/products/${product.id}`} className="group block">
-      <Card className="overflow-hidden transition-shadow hover:shadow-md h-full">
+    <Card className="overflow-hidden transition-shadow hover:shadow-md h-full flex flex-col">
+      <Link to={`/products/${product.id}`} className="group block flex-1">
         <div className="aspect-square overflow-hidden bg-muted">
           {product.imageUrl ? (
             <img
@@ -36,15 +53,15 @@ export function ProductCard({ product }: ProductCardProps) {
               </p>
             )}
           </div>
-          {/* View options / view product — ProductCard no longer adds directly to cart since
-              the sellable unit is the variant (ADR 0003). Detail page handles variant picker. */}
-          <Button variant="outline" size="sm" className="w-full" asChild>
-            <span>
-              {product.variantCount > 1 ? 'View options' : 'View product'}
-            </span>
-          </Button>
         </CardContent>
-      </Card>
-    </Link>
+      </Link>
+      {/* Single quick-add button outside the card link (Q8): nested
+          interactive elements inside the <Link> would be an a11y violation. */}
+      <div className="px-4 pb-4 mt-auto">
+        <Button variant="outline" size="sm" className="w-full" onClick={handleQuickAdd}>
+          Add to cart
+        </Button>
+      </div>
+    </Card>
   )
 }

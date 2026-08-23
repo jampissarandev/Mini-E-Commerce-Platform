@@ -1,8 +1,12 @@
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { describe, expect, it } from 'vitest'
+import { http, HttpResponse } from 'msw'
+import { describe, expect, it, beforeEach } from 'vitest'
 import { ProductCard } from '@/components/ProductCard'
+import { server } from '@/test/server'
+import { useAuthStore } from '@/lib/auth-store'
 import type { ProductListItem } from '@/lib/types'
 
 const mockProduct: ProductListItem = {
@@ -13,17 +17,64 @@ const mockProduct: ProductListItem = {
   imageUrl: '/images/laptop.jpg',
   categoryName: 'Electronics',
   variantCount: 1,
+  variants: [{ id: 10, stock: 5 }],
+}
+
+let cartPostBodies: Array<{ productVariantId: number; quantity: number }> = []
+
+function LocationProbe() {
+  const { pathname } = useLocation()
+  return <div data-testid="location-probe">{pathname}</div>
 }
 
 function renderCard(product: ProductListItem = mockProduct) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+
   return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter>
-        <ProductCard product={product} />
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/products']}>
+        <Routes>
+          <Route path="/products" element={<ProductCard product={product} />} />
+          <Route path="/products/:id" element={<LocationProbe />} />
+        </Routes>
+        <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>,
   )
 }
+
+beforeEach(() => {
+  useAuthStore.setState({
+    token: 'test-token',
+    customer: { id: '1', email: 'test@example.com', fullName: 'Test User', role: 'Customer', createdAt: '2026-01-01' },
+  })
+  cartPostBodies = []
+  server.resetHandlers()
+  server.use(
+    http.post(/\/api\/cart\/items$/, async ({ request }) => {
+      const body = (await request.json()) as { productVariantId: number; quantity: number }
+      cartPostBodies.push(body)
+      return HttpResponse.json({
+        success: true,
+        data: {
+          id: 99,
+          productId: mockProduct.id,
+          productVariantId: body.productVariantId,
+          productName: mockProduct.name,
+          productSlug: mockProduct.slug,
+          size: null,
+          color: null,
+          imageUrl: mockProduct.imageUrl,
+          unitPrice: mockProduct.price,
+          quantity: body.quantity,
+          subtotal: mockProduct.price * body.quantity,
+        },
+      })
+    }),
+  )
+})
 
 describe('ProductCard', () => {
   it('renders product name', () => {
@@ -59,21 +110,78 @@ describe('ProductCard', () => {
     expect(screen.getByText(/no image/i)).toBeInTheDocument()
   })
 
-  it('renders out-of-stock badge when stock is zero', () => {
-    renderCard({ ...mockProduct } as ProductListItem)
-    // ProductListItem doesn't have stock, so no badge shown by default
-    expect(screen.queryByText(/out of stock/i)).not.toBeInTheDocument()
-  })
-
   it('shows variant count when product has multiple variants', () => {
     renderCard({ ...mockProduct, variantCount: 3 })
     expect(screen.getByText(/3 variants/i)).toBeInTheDocument()
-    expect(screen.getByText(/view options/i)).toBeInTheDocument()
   })
 
   it('does not show variant count when only one variant', () => {
     renderCard({ ...mockProduct, variantCount: 1 })
     expect(screen.queryByText(/variants/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/view product/i)).toBeInTheDocument()
+  })
+
+  // ─────────────── Quick-add (ADR 0008 Phase C) ───────────────
+
+  it('shows a single "Add to cart" button regardless of variant count', () => {
+    renderCard({ ...mockProduct, variantCount: 3 })
+    expect(screen.getByRole('button', { name: /add to cart/i })).toBeInTheDocument()
+    expect(screen.queryByText(/view options/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/view product/i)).not.toBeInTheDocument()
+
+    renderCard({ ...mockProduct, variantCount: 1 })
+    expect(screen.getAllByRole('button', { name: /add to cart/i }).length).toBeGreaterThan(0)
+  })
+
+  it('quick-add sends the preferred variant id with quantity 1', async () => {
+    const user = userEvent.setup()
+    renderCard({ ...mockProduct, variantCount: 1 })
+
+    await user.click(screen.getByRole('button', { name: /add to cart/i }))
+
+    await waitFor(() => {
+      expect(cartPostBodies).toHaveLength(1)
+    })
+    expect(cartPostBodies[0]).toEqual({ productVariantId: 10, quantity: 1 })
+  })
+
+  it('quick-add on a multi-variant card picks the first in-stock variant', async () => {
+    const user = userEvent.setup()
+    // First variant OOS, second in stock — pickPreferredVariant must skip
+    // the OOS one; the wire payload is the source of truth for which won.
+    renderCard({
+      ...mockProduct,
+      variantCount: 2,
+      variants: [
+        { id: 10, stock: 0 },
+        { id: 11, stock: 7 },
+      ],
+    })
+
+    await user.click(screen.getByRole('button', { name: /add to cart/i }))
+
+    await waitFor(() => {
+      expect(cartPostBodies).toHaveLength(1)
+    })
+    expect(cartPostBodies[0]).toEqual({ productVariantId: 11, quantity: 1 })
+  })
+
+  it('quick-add when all variants are out of stock navigates to the detail page instead', async () => {
+    const user = userEvent.setup()
+    renderCard({
+      ...mockProduct,
+      variantCount: 2,
+      variants: [
+        { id: 10, stock: 0 },
+        { id: 11, stock: 0 },
+      ],
+    })
+
+    await user.click(screen.getByRole('button', { name: /add to cart/i }))
+
+    // Navigated to detail (probe shows /products/1) and nothing was added.
+    await waitFor(() => {
+      expect(screen.getAllByTestId('location-probe')[0]).toHaveTextContent('/products/1')
+    })
+    expect(cartPostBodies).toHaveLength(0)
   })
 })

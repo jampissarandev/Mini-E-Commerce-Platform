@@ -1,9 +1,10 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse, delay } from 'msw'
 import { describe, expect, it, beforeEach } from 'vitest'
 import { server } from '@/test/server'
 import { useCart, useAddToCart, useUpdateCartItem, useRemoveCartItem, useClearCart } from '@/lib/useCart'
+import type { ApiResponse, CartDto } from '@/lib/types'
 import type { ReactNode } from 'react'
 
 function createWrapper() {
@@ -162,5 +163,101 @@ describe('useClearCart', () => {
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true)
     })
+  })
+})
+
+// ─────────────── Optimistic add (ADR 0008 Phase C, Q6) ───────────────
+
+describe('useAddToCart optimistic update', () => {
+  beforeEach(() => {
+    server.resetHandlers()
+    // Default cart: one item, quantity 2 → badge count starts at 2.
+    server.use(
+      http.get(/\/api\/cart$/, () => HttpResponse.json(mockCartDto)),
+    )
+  })
+
+  function renderCartWithAddToCart() {
+    return renderHook(
+      () => {
+        const cart = useCart()
+        const addToCart = useAddToCart()
+        return { cart, addToCart }
+      },
+      { wrapper: createWrapper() },
+    )
+  }
+
+  function itemCount(result: { cart: { data?: ApiResponse<CartDto> } }): number {
+    return (
+      result.cart.data?.data.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0
+    )
+  }
+
+  it('bumps the cached cart count immediately via onMutate, before the POST resolves', async () => {
+    // Slow POST: the optimistic patch must land while it is still pending.
+    server.use(
+      http.post(/\/api\/cart\/items$/, async () => {
+        await delay(300)
+        return HttpResponse.json(mockCartItemDto)
+      }),
+    )
+
+    const { result } = renderCartWithAddToCart()
+
+    await waitFor(() => {
+      expect(result.current.cart.isSuccess).toBe(true)
+    })
+    expect(itemCount(result.current)).toBe(2)
+
+    result.current.addToCart.mutate({ productVariantId: 11, quantity: 3 })
+
+    // Optimistic: count shows 2 + 3 = 5 while the POST is in flight.
+    await waitFor(
+      () => {
+        expect(itemCount(result.current)).toBe(5)
+      },
+      { timeout: 1000 },
+    )
+
+    // After the POST resolves and the invalidation refetch lands, the cache
+    // reflects the server response (mockCartItemDto replaces the seed).
+    await waitFor(() => {
+      expect(result.current.addToCart.isSuccess).toBe(true)
+    })
+  })
+
+  it('rolls back the optimistic bump when the POST fails', async () => {
+    server.use(
+      http.post(/\/api\/cart\/items$/, async () => {
+        await delay(300)
+        return HttpResponse.json(
+          { success: false, error: { code: 'INSUFFICIENT_STOCK', message: 'nope' } },
+          { status: 400 },
+        )
+      }),
+    )
+
+    const { result } = renderCartWithAddToCart()
+
+    await waitFor(() => {
+      expect(result.current.cart.isSuccess).toBe(true)
+    })
+
+    result.current.addToCart.mutate({ productVariantId: 11, quantity: 3 })
+
+    // Optimistic bump visible while the request is in flight…
+    await waitFor(
+      () => {
+        expect(itemCount(result.current)).toBe(5)
+      },
+      { timeout: 1000 },
+    )
+
+    // …and rolled back to the pre-mutation snapshot once it fails.
+    await waitFor(() => {
+      expect(result.current.addToCart.isError).toBe(true)
+    })
+    expect(itemCount(result.current)).toBe(2)
   })
 })

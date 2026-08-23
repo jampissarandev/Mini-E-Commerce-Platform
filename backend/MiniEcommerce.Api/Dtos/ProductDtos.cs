@@ -26,6 +26,25 @@ public record ProductListItem
     /// payload small.
     /// </summary>
     public int VariantCount { get; init; }
+
+    /// <summary>
+    /// Minimal active-variant summary ({id, stock}, Id ascending) so the
+    /// frontend card can quick-add the preferred variant or fall back to
+    /// navigating to the detail page when everything is out of stock
+    /// (ADR 0008 Phase C). Deliberately omits Sku/Size/Color — those stay
+    /// detail-only per the Task 27b payload decision.
+    /// </summary>
+    public List<ProductVariantSummaryDto> Variants { get; init; } = [];
+}
+
+/// <summary>
+/// Minimal sellable-unit summary for the catalog list — just enough for the
+/// quick-add affordance: which variant to add and whether it has stock.
+/// </summary>
+public record ProductVariantSummaryDto
+{
+    public int Id { get; init; }
+    public int Stock { get; init; }
 }
 
 /// <summary>

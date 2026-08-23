@@ -15,13 +15,61 @@ export function useCart() {
   })
 }
 
-/** Add an item to the cart. Invalidates the cart query on success. */
+/**
+ * A neutral CartItemDto placeholder for the optimistic patch. The cart
+ * badge only sums quantities, so unknown fields (name, price, image) stay
+ * empty; the invalidation refetch replaces the placeholder with the real
+ * server row moments later.
+ */
+function optimisticItem(request: AddCartItemRequest): CartItemDto {
+  return {
+    id: -Date.now(), // negative = client-side placeholder, never a real row id
+    productId: 0,
+    productVariantId: request.productVariantId,
+    productName: '',
+    productSlug: '',
+    size: null,
+    color: null,
+    imageUrl: '',
+    unitPrice: 0,
+    quantity: request.quantity,
+    subtotal: 0,
+  }
+}
+
+interface AddToCartSnapshot {
+  previous?: ApiResponse<CartDto>
+}
+
+/** Add an item to the cart. Optimistically patches the cached cart so the
+ *  badge count updates instantly (ADR 0008 Phase C, Q6); rolls back on
+ *  failure and refetches the truth on success. */
 export function useAddToCart() {
   const queryClient = useQueryClient()
-  return useMutation({
+  return useMutation<ApiResponse<CartItemDto>, Error, AddCartItemRequest, AddToCartSnapshot>({
     mutationFn: async (request: AddCartItemRequest) => {
       const { data } = await api.post<ApiResponse<CartItemDto>>('/cart/items', request)
       return data
+    },
+    onMutate: async (request) => {
+      // Cancel in-flight cart refetches so they can't clobber the patch.
+      await queryClient.cancelQueries({ queryKey: CART_KEY })
+      const previous = queryClient.getQueryData<ApiResponse<CartDto>>(CART_KEY)
+      if (previous?.data) {
+        queryClient.setQueryData<ApiResponse<CartDto>>(CART_KEY, {
+          ...previous,
+          data: {
+            ...previous.data,
+            items: [...previous.data.items, optimisticItem(request)],
+          },
+        })
+      }
+      return { previous }
+    },
+    onError: (_error, _request, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(CART_KEY, context.previous)
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CART_KEY })

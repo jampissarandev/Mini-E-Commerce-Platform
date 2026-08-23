@@ -64,6 +64,15 @@ public class ProductsController : ControllerBase
                     .Select(i => i.Url)
                     .FirstOrDefault() ?? string.Empty,
                 VariantCount = p.Variants.Count(v => v.IsActive),
+                Variants = p.Variants
+                    .Where(v => v.IsActive)
+                    .OrderBy(v => v.Id)
+                    .Select(v => new ProductVariantSummaryDto
+                    {
+                        Id = v.Id,
+                        Stock = v.Stock
+                    })
+                    .ToList(),
             })
             .ToListAsync(cancellationToken);
 

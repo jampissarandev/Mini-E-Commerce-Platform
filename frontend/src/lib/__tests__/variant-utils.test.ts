@@ -54,4 +54,16 @@ describe('pickPreferredVariant', () => {
     ]
     expect(pickPreferredVariant(variants)?.id).toBe(2)
   })
+
+  // ADR 0008 Phase C: the catalog list summary omits `isActive` (the
+  // backend already filters inactive variants out). Missing flag must be
+  // treated as active so quick-add works on summary-shaped input.
+  it('treats a missing isActive flag as active (summary shape)', () => {
+    const summaries = [
+      { id: 10, stock: 0 },
+      { id: 11, stock: 7 },
+    ]
+    expect(pickPreferredVariant(summaries)?.id).toBe(11)
+    expect(pickPreferredVariant([{ id: 12, stock: 0 }])?.id).toBe(12)
+  })
 })

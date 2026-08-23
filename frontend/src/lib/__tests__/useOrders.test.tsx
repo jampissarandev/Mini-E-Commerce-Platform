@@ -33,6 +33,8 @@ const mockOrderDto = {
       id: 1,
       productVariantId: 10,
       productName: 'Laptop Pro',
+      size: 'M',
+      color: 'Black',
       unitPrice: 1299.99,
       quantity: 1,
       subtotal: 1299.99,
