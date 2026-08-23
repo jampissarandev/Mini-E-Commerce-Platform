@@ -256,12 +256,13 @@ public class OrdersController : ControllerBase
         {
             await _addressBook.CreateForCustomerAsync(
                 customerId,
-                shippingFullName,
-                shippingStreet,
-                shippingCity,
-                shippingPostalCode,
-                shippingCountry,
-                shippingPhone,
+                new AddressData(
+                    FullName: shippingFullName,
+                    Street: shippingStreet,
+                    City: shippingCity,
+                    PostalCode: shippingPostalCode,
+                    Country: shippingCountry,
+                    Phone: shippingPhone),
                 cancellationToken);
         }
 

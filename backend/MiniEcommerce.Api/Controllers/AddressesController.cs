@@ -65,12 +65,7 @@ public class AddressesController : ControllerBase
 
         var address = await _addressBook.CreateForCustomerAsync(
             customerId,
-            request.FullName,
-            request.Street,
-            request.City,
-            request.PostalCode,
-            request.Country,
-            request.Phone,
+            ToAddressData(request),
             cancellationToken);
 
         return StatusCode(StatusCodes.Status201Created,
@@ -100,12 +95,7 @@ public class AddressesController : ControllerBase
         var updated = await _addressBook.UpdateAsync(
             customerId,
             id,
-            request.FullName,
-            request.Street,
-            request.City,
-            request.PostalCode,
-            request.Country,
-            request.Phone,
+            ToAddressData(request),
             cancellationToken);
 
         if (!updated)
@@ -187,4 +177,25 @@ public class AddressesController : ControllerBase
         IsDefault = address.IsDefault,
         CreatedAt = address.CreatedAt
     };
+
+    /// <summary>
+    /// Bundle the flat request DTO into the <see cref="AddressData"/> record
+    /// the service consumes. Single point of mapping for both Create and Update
+    /// so a new field lands in one place.
+    /// </summary>
+    private static AddressData ToAddressData(CreateAddressRequest request) => new(
+        FullName: request.FullName,
+        Street: request.Street,
+        City: request.City,
+        PostalCode: request.PostalCode,
+        Country: request.Country,
+        Phone: request.Phone);
+
+    private static AddressData ToAddressData(UpdateAddressRequest request) => new(
+        FullName: request.FullName,
+        Street: request.Street,
+        City: request.City,
+        PostalCode: request.PostalCode,
+        Country: request.Country,
+        Phone: request.Phone);
 }

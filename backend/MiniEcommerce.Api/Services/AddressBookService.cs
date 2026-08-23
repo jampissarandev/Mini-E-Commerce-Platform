@@ -40,12 +40,7 @@ public class AddressBookService : IAddressBookService
 
     public async Task<Address> CreateForCustomerAsync(
         string customerId,
-        string fullName,
-        string street,
-        string city,
-        string postalCode,
-        string country,
-        string phone,
+        AddressData data,
         CancellationToken cancellationToken = default)
     {
         // First address IsDefault=true, all later IsDefault=false. The
@@ -59,12 +54,12 @@ public class AddressBookService : IAddressBookService
         var address = new Address
         {
             CustomerId = customerId,
-            FullName = fullName,
-            Street = street,
-            City = city,
-            PostalCode = postalCode,
-            Country = country,
-            Phone = phone,
+            FullName = data.FullName,
+            Street = data.Street,
+            City = data.City,
+            PostalCode = data.PostalCode,
+            Country = data.Country,
+            Phone = data.Phone,
             IsDefault = !hasAddresses,
             CreatedAt = DateTime.UtcNow,
         };
@@ -93,12 +88,7 @@ public class AddressBookService : IAddressBookService
     public async Task<bool> UpdateAsync(
         string customerId,
         int addressId,
-        string fullName,
-        string street,
-        string city,
-        string postalCode,
-        string country,
-        string phone,
+        AddressData data,
         CancellationToken cancellationToken = default)
     {
         // Editable fields only — IsDefault has its own endpoint (SetDefault)
@@ -111,12 +101,12 @@ public class AddressBookService : IAddressBookService
             return false;
         }
 
-        address.FullName = fullName;
-        address.Street = street;
-        address.City = city;
-        address.PostalCode = postalCode;
-        address.Country = country;
-        address.Phone = phone;
+        address.FullName = data.FullName;
+        address.Street = data.Street;
+        address.City = data.City;
+        address.PostalCode = data.PostalCode;
+        address.Country = data.Country;
+        address.Phone = data.Phone;
 
         await _context.SaveChangesAsync(cancellationToken);
         return true;

@@ -17,14 +17,14 @@ public interface IAddressBookService
     /// Create a new address for the customer. The first address is auto-default;
     /// all later addresses are non-default. Returns the persisted address.
     /// </summary>
+    /// <remarks>
+    /// <paramref name="data"/> bundles the editable address fields. IsDefault is
+    /// not a parameter because the first-address rule is the only way this
+    /// method sets it.
+    /// </remarks>
     Task<Models.Address> CreateForCustomerAsync(
         string customerId,
-        string fullName,
-        string street,
-        string city,
-        string postalCode,
-        string country,
-        string phone,
+        Models.AddressData data,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -37,12 +37,7 @@ public interface IAddressBookService
     Task<bool> UpdateAsync(
         string customerId,
         int addressId,
-        string fullName,
-        string street,
-        string city,
-        string postalCode,
-        string country,
-        string phone,
+        Models.AddressData data,
         CancellationToken cancellationToken = default);
 
     /// <summary>

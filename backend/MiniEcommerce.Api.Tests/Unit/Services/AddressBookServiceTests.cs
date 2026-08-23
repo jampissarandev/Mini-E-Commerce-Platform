@@ -53,6 +53,14 @@ public class AddressBookServiceTests
         return a;
     }
 
+    private static AddressData DefaultData(string fullName = "Jane Doe") => new(
+        FullName: fullName,
+        Street: "1 St",
+        City: "City",
+        PostalCode: "00000",
+        Country: "US",
+        Phone: "+1-555-0000");
+
     // ─────────────── CreateForCustomerAsync ───────────────
 
     [Fact]
@@ -60,8 +68,7 @@ public class AddressBookServiceTests
     {
         var sut = NewSut(out var ctx);
 
-        var address = await sut.CreateForCustomerAsync(
-            CustomerA, "First", "1 St", "City", "00000", "US", "+1-555-0000");
+        var address = await sut.CreateForCustomerAsync(CustomerA, DefaultData("First"));
 
         address.IsDefault.Should().BeTrue("the first address is auto-default per ADR 0004");
     }
@@ -72,8 +79,7 @@ public class AddressBookServiceTests
         var sut = NewSut(out var ctx);
         Seed(ctx, CustomerA, isDefault: true);
 
-        var address = await sut.CreateForCustomerAsync(
-            CustomerA, "Second", "1 St", "City", "00000", "US", "+1-555-0000");
+        var address = await sut.CreateForCustomerAsync(CustomerA, DefaultData("Second"));
 
         address.IsDefault.Should().BeFalse("only one address per customer may be default");
     }
@@ -85,13 +91,10 @@ public class AddressBookServiceTests
         Seed(ctx, CustomerA, isDefault: true);
         Seed(ctx, CustomerB, isDefault: true);
 
-        await sut.CreateForCustomerAsync(
-            CustomerB, "Second", "1 St", "City", "00000", "US", "+1-555-0000");
+        await sut.CreateForCustomerAsync(CustomerB, DefaultData("Second"));
 
-        // Customer A's default should be untouched
         var customerADefault = ctx.Addresses.Single(a => a.CustomerId == CustomerA && a.IsDefault);
         customerADefault.FullName.Should().Be("Test");
-        // Customer B now has exactly one default
         var customerBDefaults = ctx.Addresses.Where(a => a.CustomerId == CustomerB && a.IsDefault).ToList();
         customerBDefaults.Should().HaveCount(1);
     }
@@ -101,14 +104,15 @@ public class AddressBookServiceTests
     {
         var sut = NewSut(out var ctx);
 
-        var address = await sut.CreateForCustomerAsync(
-            CustomerA,
-            fullName: "Jane Doe",
-            street: "123 Main St",
-            city: "Springfield",
-            postalCode: "62704",
-            country: "US",
-            phone: "+1-555-0100");
+        var data = new AddressData(
+            FullName: "Jane Doe",
+            Street: "123 Main St",
+            City: "Springfield",
+            PostalCode: "62704",
+            Country: "US",
+            Phone: "+1-555-0100");
+
+        var address = await sut.CreateForCustomerAsync(CustomerA, data);
 
         address.Id.Should().BeGreaterThan(0);
         address.CustomerId.Should().Be(CustomerA);
@@ -193,7 +197,6 @@ public class AddressBookServiceTests
         var ok = await sut.SetDefaultAsync(CustomerA, victim.Id);
 
         ok.Should().BeFalse();
-        // Victim's default flag should be unchanged
         ctx.Addresses.Single(a => a.Id == victim.Id).IsDefault.Should().BeTrue();
     }
 
