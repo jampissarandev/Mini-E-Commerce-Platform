@@ -22,6 +22,7 @@ public class OrdersController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IPaymentService _paymentService;
     private readonly IAddressBookService _addressBook;
+    private readonly IVariantStockWriter _variantStock;
     private readonly ShippingOptions _shippingOptions;
 
     public OrdersController(
@@ -29,12 +30,14 @@ public class OrdersController : ControllerBase
         UserManager<ApplicationUser> userManager,
         IPaymentService paymentService,
         IAddressBookService addressBook,
+        IVariantStockWriter variantStock,
         IOptions<ShippingOptions> shippingOptions)
     {
         _context = context;
         _userManager = userManager;
         _paymentService = paymentService;
         _addressBook = addressBook;
+        _variantStock = variantStock;
         _shippingOptions = shippingOptions.Value;
     }
 
@@ -111,58 +114,25 @@ public class OrdersController : ControllerBase
         var total = subtotal + shippingFee;
 
         // ── Atomic stock deduction (ADR 0002, per-variant ADR 0003) ────────
-        // Each cart item issues: UPDATE "ProductVariants" SET "Stock" = "Stock" - @qty
-        // WHERE "Id" = @id AND "Stock" >= @qty.  rowsAffected==0 means
-        // insufficient stock (or concurrent winner).  On the InMemory provider
-        // used by tests ExecuteSql is not supported — fall back to tracked
-        // check which is sufficient for single-threaded test correctness.
-        var isInMemory = _context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory";
+        // Each cart item: TryDeductAsync — atomic UPDATE on Postgres,
+        // tracked-entity decrement on the InMemory provider used in tests.
+        // On failure, restock everything already deducted so a partial
+        // checkout never leaves phantom deductions behind.
         var deducted = new List<CartItem>();
 
         foreach (var item in cart.Items)
         {
-            int rowsAffected;
-            if (isInMemory)
+            var ok = await _variantStock.TryDeductAsync(item.ProductVariantId, item.Quantity, cancellationToken);
+            if (!ok)
             {
-                // Simulate the atomic guard for the InMemory provider used in tests
-                var currentStock = item.ProductVariant.Stock;
-                if (currentStock < item.Quantity)
-                {
-                    rowsAffected = 0;
-                }
-                else
-                {
-                    item.ProductVariant.Stock -= item.Quantity;
-                    rowsAffected = 1;
-                }
-            }
-            else
-            {
-                rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
-                    $"UPDATE \"ProductVariants\" SET \"Stock\" = \"Stock\" - {item.Quantity} WHERE \"Id\" = {item.ProductVariantId} AND \"Stock\" >= {item.Quantity}",
-                    cancellationToken);
-            }
-
-            if (rowsAffected == 0)
-            {
-                // Restock any items already deducted in this checkout
                 foreach (var prev in deducted)
                 {
-                    if (isInMemory)
-                    {
-                        prev.ProductVariant.Stock += prev.Quantity;
-                    }
-                    else
-                    {
-                        await _context.Database.ExecuteSqlInterpolatedAsync(
-                            $"UPDATE \"ProductVariants\" SET \"Stock\" = \"Stock\" + {prev.Quantity} WHERE \"Id\" = {prev.ProductVariantId}",
-                            cancellationToken);
-                    }
+                    await _variantStock.RestockAsync(prev.ProductVariantId, prev.Quantity, cancellationToken);
                 }
 
                 // Refresh tracked stock so subsequent error messages are accurate
                 var name = item.ProductVariant.Product.Name;
-                var available = isInMemory ? item.ProductVariant.Stock : 0;
+                var available = item.ProductVariant.Stock;
                 var msg = available > 0
                     ? $"Only {available} units of \"{name}\" are available, but you have {item.Quantity} in your cart."
                     : $"Insufficient stock for \"{name}\" (requested {item.Quantity}).";
@@ -190,27 +160,13 @@ public class OrdersController : ControllerBase
             // Explicit restock loop (ADR 0002 consequence): atomic UPDATE back
             foreach (var item in deducted)
             {
-                if (isInMemory)
-                {
-                    item.ProductVariant.Stock += item.Quantity;
-                }
-                else
-                {
-                    await _context.Database.ExecuteSqlInterpolatedAsync(
-                        $"UPDATE \"ProductVariants\" SET \"Stock\" = \"Stock\" + {item.Quantity} WHERE \"Id\" = {item.ProductVariantId}",
-                        cancellationToken);
-                }
+                await _variantStock.RestockAsync(item.ProductVariantId, item.Quantity, cancellationToken);
             }
 
-            if (isInMemory)
-            {
-                // InMemory pending Stock mutations live on tracked entities;
-                // the restock above already restored them — just discard any
-                // pending order attempt by not calling SaveChanges.
-                // Ensure tracker doesn't hold stale Stock values.
-                await _context.SaveChangesAsync(cancellationToken);
-            }
-
+            // InMemory provider: tracked mutations were already saved by
+            // TryDeductAsync; nothing more to do. Discard the pending order
+            // by not calling SaveChanges further. (For Postgres, the above
+            // RestockAsync issued an UPDATE per item.)
             return BadRequest(ApiResponse.Fail(new ApiError
             {
                 Code = "PAYMENT_FAILED",
