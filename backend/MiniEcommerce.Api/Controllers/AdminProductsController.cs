@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +6,7 @@ using MiniEcommerce.Api.Dtos;
 using MiniEcommerce.Api.Exceptions;
 using MiniEcommerce.Api.Interfaces;
 using MiniEcommerce.Api.Models;
+using MiniEcommerce.Api.Services;
 
 namespace MiniEcommerce.Api.Controllers;
 
@@ -127,25 +127,22 @@ public class AdminProductsController : ControllerBase
             }));
         }
 
-        // Generate or use provided slug
-        var slug = string.IsNullOrWhiteSpace(request.Slug)
-            ? GenerateSlug(request.Name)
-            : request.Slug;
-
-        // Check slug uniqueness
-        if (await _context.Products.AnyAsync(p => p.Slug == slug, cancellationToken))
+        // Generate or use provided slug, then check uniqueness. Shared with
+        // UpdateProduct so the rules and error code stay in sync.
+        var resolvedSlug = await ResolveUniqueSlugAsync(
+            name: request.Name,
+            requestedSlug: request.Slug,
+            excludeProductId: null,
+            cancellationToken);
+        if (resolvedSlug.Conflict is not null)
         {
-            return Conflict(ApiResponse.Fail(new ApiError
-            {
-                Code = "SLUG_TAKEN",
-                Message = $"A product with slug \"{slug}\" already exists."
-            }));
+            return resolvedSlug.Conflict;
         }
 
         var product = new Product
         {
             Name = request.Name,
-            Slug = slug,
+            Slug = resolvedSlug.Slug,
             Description = request.Description,
             Price = request.Price,
             CategoryId = request.CategoryId,
@@ -219,23 +216,20 @@ public class AdminProductsController : ControllerBase
             }));
         }
 
-        // Generate or use provided slug
-        var slug = string.IsNullOrWhiteSpace(request.Slug)
-            ? GenerateSlug(request.Name)
-            : request.Slug;
-
-        // Check slug uniqueness (exclude current product)
-        if (await _context.Products.AnyAsync(p => p.Slug == slug && p.Id != id, cancellationToken))
+        // Generate or use provided slug, then check uniqueness (excluding the
+        // current product). Shared with CreateProduct.
+        var resolvedSlug = await ResolveUniqueSlugAsync(
+            name: request.Name,
+            requestedSlug: request.Slug,
+            excludeProductId: id,
+            cancellationToken);
+        if (resolvedSlug.Conflict is not null)
         {
-            return Conflict(ApiResponse.Fail(new ApiError
-            {
-                Code = "SLUG_TAKEN",
-                Message = $"A product with slug \"{slug}\" already exists."
-            }));
+            return resolvedSlug.Conflict;
         }
 
         product.Name = request.Name;
-        product.Slug = slug;
+        product.Slug = resolvedSlug.Slug;
         product.Description = request.Description;
         product.Price = request.Price;
         product.CategoryId = request.CategoryId;
@@ -701,12 +695,42 @@ public class AdminProductsController : ControllerBase
         };
     }
 
-    private static string GenerateSlug(string name)
+    /// <summary>
+    /// Resolves a slug for the product (use the caller's value if non-empty,
+    /// otherwise auto-generate from the name) and checks for uniqueness. On
+    /// conflict returns a ready-to-return 409 <c>SLUG_TAKEN</c> response;
+    /// otherwise <c>Conflict</c> is null and <c>Slug</c> is the value to
+    /// persist.
+    /// </summary>
+    /// <param name="name">Product name, used to auto-generate a slug when <paramref name="requestedSlug"/> is empty.</param>
+    /// <param name="requestedSlug">Caller-supplied slug. Returned untouched when non-empty.</param>
+    /// <param name="excludeProductId">When updating an existing product, pass its id so a no-op rename doesn't reject itself. <c>null</c> on create.</param>
+    /// <param name="cancellationToken">Forwarded to the EF Core query.</param>
+    private async Task<(string Slug, IActionResult? Conflict)> ResolveUniqueSlugAsync(
+        string name,
+        string? requestedSlug,
+        int? excludeProductId,
+        CancellationToken cancellationToken)
     {
-        var slug = name.ToLowerInvariant();
-        slug = Regex.Replace(slug, @"[^a-z0-9\s-]", "");
-        slug = Regex.Replace(slug, @"\s+", "-");
-        slug = Regex.Replace(slug, @"-+", "-");
-        return slug.Trim('-');
+        var slug = string.IsNullOrWhiteSpace(requestedSlug)
+            ? ProductSlugGenerator.GenerateFromName(name)
+            : requestedSlug;
+
+        var query = _context.Products.AsQueryable().Where(p => p.Slug == slug);
+        if (excludeProductId.HasValue)
+        {
+            query = query.Where(p => p.Id != excludeProductId.Value);
+        }
+
+        if (await query.AnyAsync(cancellationToken))
+        {
+            return (slug, Conflict(ApiResponse.Fail(new ApiError
+            {
+                Code = "SLUG_TAKEN",
+                Message = $"A product with slug \"{slug}\" already exists."
+            })));
+        }
+
+        return (slug, null);
     }
 }
