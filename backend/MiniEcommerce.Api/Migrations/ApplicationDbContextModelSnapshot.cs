@@ -203,8 +203,6 @@ namespace MiniEcommerce.Api.Migrations
                         .HasDatabaseName("IX_Addresses_OneDefaultPerCustomer")
                         .HasFilter("\"IsDefault\" = true");
 
-                    b.HasIndex("CustomerId", "IsDefault");
-
                     b.ToTable("Addresses");
                 });
 

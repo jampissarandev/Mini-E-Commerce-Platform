@@ -139,8 +139,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(a => a.CustomerId)
                 .OnDelete(DeleteBehavior.Cascade);
-            e.HasIndex(a => new { a.CustomerId, a.IsDefault })
-                .HasFilter(null); // no filter needed for InMemory compat
             // ADR 0004 invariant: at-most-one IsDefault=true per customer.
             // Backstops the concurrent-first-INSERT race at the DB level
             // (two callers can both observe AnyAsync=false before either
@@ -149,6 +147,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // non-default). The InMemory provider used by tests ignores
             // indexes, so the constraint is checked in app code there
             // (single-threaded by construction).
+            // The partial unique index covers every query AddressBookService
+            // issues: Any(CustomerId) is served by CustomerId alone (the
+            // index is keyed on CustomerId); Any(CustomerId && IsDefault=true)
+            // matches the partial filter. The non-unique compound index
+            // IX_Addresses_CustomerId_IsDefault that originally paired with
+            // this was redundant — dropped by migration
+            // DropAddressesCustomerIdIsDefaultIndex.
             e.HasIndex(a => a.CustomerId)
                 .IsUnique()
                 .HasFilter("\"IsDefault\" = true")
