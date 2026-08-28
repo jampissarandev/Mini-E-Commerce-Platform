@@ -25,4 +25,4 @@ The `CartItemDto.ProductId` carve-out has a different motivation: `Product.Slug`
 - Future order-history features (admin re-order, "filter past orders by size") can rely on the split fields without re-parsing the snapshot string.
 - Future SKU changes to `ProductVariant.Sku` do not retroactively change historical orders' snapshotted `Sku` — the snapshot rule still holds, just one level deeper.
 
-**Status (2026-08-23):** Accepted. Resolve the round-4 / Task-27-review "Decide later" followups (Decide-later items #2, #3, #4 in `tasks/todo.md`). Implementation pending under `/mattpocock-skills implement` with the TDD skill — backend DTO + mapper changes first (Phase B), then frontend wire-up + `ProductCard` quick-add (Phase C).
+**Status (2026-08-24):** Shipped. Backend DTO + mapper changes in `b3913ae` (Phase B); frontend wiring + `ProductCard` quick-add in `6b3addd` (Phase C); code-review fixup (tests only) in `b8affe7`. CI green across all three commits.

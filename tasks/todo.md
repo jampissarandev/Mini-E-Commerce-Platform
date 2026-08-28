@@ -184,7 +184,7 @@
 - [x] **Task 21: Documentation**
   - [x] 21a: README + setup instructions — `README.md` (2026-08-17, closes 20a too)
   - [x] 21b: Swagger annotations — ✅ Shipped 2026-08-20 in `8a640dd` (`[SwaggerOperation]` on Auth/Cart/Products/Orders, `[SwaggerSchema]` on DTOs, `Program.cs` wiring)
-  - [ ] 21c: VPS deployment guide
+  - [x] 21c: VPS deployment guide — `docs/deploy.md` (Docker, Caddy HTTPS, backups, updates)
 
 - [x] **Task 22: Docker Production Build**
   - [x] 22a: Multi-stage Dockerfile for API — (2026-08-17) added non-root `appuser`, `curl` healthcheck, `wwwroot` for image uploads

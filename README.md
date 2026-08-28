@@ -154,4 +154,6 @@ Admin endpoints require a JWT with the `Admin` role; cart/order endpoints requir
 
 ## Production deployment
 
-A production deployment guide (VPS) and a production Docker build (`docker-compose.prod.yml`, multi-stage frontend image) are part of the current work in [`tasks/todo.md`](tasks/todo.md) — Tasks 21–22. Production hardening notes (JWT key, CORS origins, mock payment mode) are documented in `appsettings.json` and the ADRs.
+See [`docs/deploy.md`](docs/deploy.md) for the full VPS deployment guide (Docker, Caddy HTTPS, backups, updates).
+
+Production hardening notes (JWT key, CORS origins, mock payment mode) are documented in `appsettings.json` and the ADRs. The production Docker Compose file is [`docker-compose.prod.yml`](docker-compose.prod.yml).
