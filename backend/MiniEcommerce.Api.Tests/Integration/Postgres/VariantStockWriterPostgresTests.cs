@@ -13,8 +13,11 @@ namespace MiniEcommerce.Api.Tests.Integration.Postgres;
 /// guard — this class uses a real Postgres container via Testcontainers
 /// (<see cref="PostgresFixture"/>) and drives concurrent <c>TryDeductAsync</c>
 /// calls against the same row. The container is shared across the
-/// <c>Postgres</c> collection (≈ 5 s startup).
+/// <c>Postgres</c> collection (≈ 5 s startup). Tagged <c>Integration-DB</c>
+/// so the default <c>dotnet test</c> run skips the harness; opt in with
+/// <c>dotnet test --filter "Category=Integration-DB"</c>.
 /// </summary>
+[Trait("Category", "Integration-DB")]
 [Collection(PostgresCollection.Name)]
 public sealed class VariantStockWriterPostgresTests
 {
@@ -22,10 +25,19 @@ public sealed class VariantStockWriterPostgresTests
 
     public VariantStockWriterPostgresTests(PostgresFixture fixture) => _fixture = fixture;
 
-    private static async Task<(Product Product, ProductVariant Variant)> SeedVariantAsync(
-        ApplicationDbContext ctx, int stock, string skuSuffix)
+    // ─────────────────────── Arrange helpers ───────────────────────
+
+    /// <summary>
+    /// Seeds a fresh product + variant on the shared container with the given
+    /// initial stock and a unique Sku suffix. Returns the new variant id so
+    /// tests don't have to plumb a context they won't use again.
+    /// </summary>
+    private async Task<int> SeedVariantIdAsync(int stock, string skuSuffix)
     {
-        var category = await ctx.Categories.FirstAsync();
+        var dbOptions = _fixture.NewOptions();
+        await using var seedCtx = new ApplicationDbContext(dbOptions);
+        var category = await seedCtx.Categories.FirstAsync();
+
         var product = new Product
         {
             Name = $"Widget-{skuSuffix}-{Guid.NewGuid():N}",
@@ -35,8 +47,8 @@ public sealed class VariantStockWriterPostgresTests
             CategoryId = category.Id,
             IsActive = true,
         };
-        ctx.Products.Add(product);
-        await ctx.SaveChangesAsync();
+        seedCtx.Products.Add(product);
+        await seedCtx.SaveChangesAsync();
 
         var variant = new ProductVariant
         {
@@ -45,199 +57,113 @@ public sealed class VariantStockWriterPostgresTests
             Stock = stock,
             IsActive = true,
         };
-        ctx.ProductVariants.Add(variant);
-        await ctx.SaveChangesAsync();
-        return (product, variant);
+        seedCtx.ProductVariants.Add(variant);
+        await seedCtx.SaveChangesAsync();
+        return variant.Id;
     }
+
+    /// <summary>
+    /// Reads the current stock for the variant on a fresh DbContext. Separate
+    /// from the racing contexts so we observe the committed value, not a
+    /// tracked-entity cache.
+    /// </summary>
+    private async Task<int> ReadStockAsync(int variantId)
+    {
+        var dbOptions = _fixture.NewOptions();
+        await using var verifyCtx = new ApplicationDbContext(dbOptions);
+        var variant = await verifyCtx.ProductVariants.FindAsync(variantId);
+        return variant!.Stock;
+    }
+
+    /// <summary>
+    /// Spins up a fresh DbContext + writer and runs <c>TryDeductAsync</c>.
+    /// Each racer gets its own context/connection — otherwise EF would
+    /// serialise on the same tracked entity and the test would degenerate
+    /// to sequential calls.
+    /// </summary>
+    private Task<bool> RunDeductAsync(int variantId, int quantity) =>
+        Task.Run(async () =>
+        {
+            var dbOptions = _fixture.NewOptions();
+            await using var ctx = new ApplicationDbContext(dbOptions);
+            var sut = new VariantStockWriter(ctx);
+            return await sut.TryDeductAsync(variantId, quantity);
+        });
 
     // ─────────────── Concurrent deduct — last unit ───────────────
 
     [Fact]
     public async Task TryDeductAsync_Concurrent_LastUnit_ExactlyOneSucceeds()
     {
-        // Arrange — one variant with Stock = 1.
-        int variantId;
-        {
-            var opts = _fixture.NewOptions();
-            await using var seedCtx = new ApplicationDbContext(opts);
-            var (_, v) = await SeedVariantAsync(seedCtx, stock: 1, skuSuffix: "CONCURRENT-1");
-            variantId = v.Id;
-        }
+        var variantId = await SeedVariantIdAsync(stock: 1, skuSuffix: "CONCURRENT-1");
 
-        // Act — two concurrent deductions against the same row, each with its
-        // own DbContext/connection (otherwise EF would serialize on the same
-        // context). The atomic UPDATE guard must let exactly one through.
-        var taskA = Task.Run(async () =>
-        {
-            var opts = _fixture.NewOptions();
-            await using var ctx = new ApplicationDbContext(opts);
-            var sut = new VariantStockWriter(ctx);
-            return await sut.TryDeductAsync(variantId, 1);
-        });
+        var results = await Task.WhenAll(
+            RunDeductAsync(variantId, 1),
+            RunDeductAsync(variantId, 1));
 
-        var taskB = Task.Run(async () =>
-        {
-            var opts = _fixture.NewOptions();
-            await using var ctx = new ApplicationDbContext(opts);
-            var sut = new VariantStockWriter(ctx);
-            return await sut.TryDeductAsync(variantId, 1);
-        });
-
-        var results = await Task.WhenAll(taskA, taskB);
-
-        // Assert — exactly one succeeded, the other was rejected, final stock 0.
         results.Count(r => r).Should().Be(1, "atomic UPDATE must let exactly one concurrent deduction win for the last unit");
         results.Count(r => !r).Should().Be(1);
-
-        {
-            var opts = _fixture.NewOptions();
-            await using var verifyCtx = new ApplicationDbContext(opts);
-            var variant = await verifyCtx.ProductVariants.FindAsync(variantId);
-            variant!.Stock.Should().Be(0);
-        }
+        (await ReadStockAsync(variantId)).Should().Be(0);
     }
 
     [Fact]
     public async Task TryDeductAsync_Concurrent_TwoUnits_TwoDeducts_BothSucceed()
     {
-        int variantId;
-        {
-            var opts = _fixture.NewOptions();
-            await using var seedCtx = new ApplicationDbContext(opts);
-            var (_, v) = await SeedVariantAsync(seedCtx, stock: 2, skuSuffix: "CONCURRENT-2");
-            variantId = v.Id;
-        }
+        var variantId = await SeedVariantIdAsync(stock: 2, skuSuffix: "CONCURRENT-2");
 
-        var taskA = Task.Run(async () =>
-        {
-            var opts = _fixture.NewOptions();
-            await using var ctx = new ApplicationDbContext(opts);
-            var sut = new VariantStockWriter(ctx);
-            return await sut.TryDeductAsync(variantId, 1);
-        });
-
-        var taskB = Task.Run(async () =>
-        {
-            var opts = _fixture.NewOptions();
-            await using var ctx = new ApplicationDbContext(opts);
-            var sut = new VariantStockWriter(ctx);
-            return await sut.TryDeductAsync(variantId, 1);
-        });
-
-        var results = await Task.WhenAll(taskA, taskB);
+        var results = await Task.WhenAll(
+            RunDeductAsync(variantId, 1),
+            RunDeductAsync(variantId, 1));
 
         results.Should().AllSatisfy(r => r.Should().BeTrue("both deductions should succeed when stock is 2"));
-
-        {
-            var opts = _fixture.NewOptions();
-            await using var verifyCtx = new ApplicationDbContext(opts);
-            var variant = await verifyCtx.ProductVariants.FindAsync(variantId);
-            variant!.Stock.Should().Be(0);
-        }
+        (await ReadStockAsync(variantId)).Should().Be(0);
     }
 
     [Fact]
     public async Task TryDeductAsync_Concurrent_TwoUnits_ThreeDeducts_ExactlyTwoSucceed()
     {
-        int variantId;
-        {
-            var opts = _fixture.NewOptions();
-            await using var seedCtx = new ApplicationDbContext(opts);
-            var (_, v) = await SeedVariantAsync(seedCtx, stock: 2, skuSuffix: "CONCURRENT-3");
-            variantId = v.Id;
-        }
+        var variantId = await SeedVariantIdAsync(stock: 2, skuSuffix: "CONCURRENT-3");
 
-        var tasks = Enumerable.Range(0, 3).Select(_ => Task.Run(async () =>
-        {
-            var opts = _fixture.NewOptions();
-            await using var ctx = new ApplicationDbContext(opts);
-            var sut = new VariantStockWriter(ctx);
-            return await sut.TryDeductAsync(variantId, 1);
-        })).ToArray();
-
+        var tasks = Enumerable.Range(0, 3).Select(_ => RunDeductAsync(variantId, 1)).ToArray();
         var results = await Task.WhenAll(tasks);
 
         results.Count(r => r).Should().Be(2, "only two deductions can win when stock is 2");
         results.Count(r => !r).Should().Be(1);
-
-        {
-            var opts = _fixture.NewOptions();
-            await using var verifyCtx = new ApplicationDbContext(opts);
-            var variant = await verifyCtx.ProductVariants.FindAsync(variantId);
-            variant!.Stock.Should().Be(0);
-        }
+        (await ReadStockAsync(variantId)).Should().Be(0);
     }
 
     [Fact]
     public async Task TryDeductAsync_Concurrent_InsufficientStock_BothFail()
     {
-        int variantId;
-        {
-            var opts = _fixture.NewOptions();
-            await using var seedCtx = new ApplicationDbContext(opts);
-            var (_, v) = await SeedVariantAsync(seedCtx, stock: 1, skuSuffix: "CONCURRENT-4");
-            variantId = v.Id;
-        }
+        var variantId = await SeedVariantIdAsync(stock: 1, skuSuffix: "CONCURRENT-4");
 
         // Both try to deduct 2 when only 1 is available — both must fail.
-        var taskA = Task.Run(async () =>
-        {
-            var opts = _fixture.NewOptions();
-            await using var ctx = new ApplicationDbContext(opts);
-            var sut = new VariantStockWriter(ctx);
-            return await sut.TryDeductAsync(variantId, 2);
-        });
-
-        var taskB = Task.Run(async () =>
-        {
-            var opts = _fixture.NewOptions();
-            await using var ctx = new ApplicationDbContext(opts);
-            var sut = new VariantStockWriter(ctx);
-            return await sut.TryDeductAsync(variantId, 2);
-        });
-
-        var results = await Task.WhenAll(taskA, taskB);
+        var results = await Task.WhenAll(
+            RunDeductAsync(variantId, 2),
+            RunDeductAsync(variantId, 2));
 
         results.Should().AllSatisfy(r => r.Should().BeFalse());
-
-        {
-            var opts = _fixture.NewOptions();
-            await using var verifyCtx = new ApplicationDbContext(opts);
-            var variant = await verifyCtx.ProductVariants.FindAsync(variantId);
-            variant!.Stock.Should().Be(1, "stock must be unchanged when both deductions fail");
-        }
+        (await ReadStockAsync(variantId)).Should().Be(1, "stock must be unchanged when both deductions fail");
     }
 
     [Fact]
-    public async Task TryDeductAsync_ThenRestock_RoundTrips_OnPostgres()
+    public async Task TryDeductAsync_ThenRestock_RestoresOriginalStock()
     {
-        int variantId;
-        {
-            var opts = _fixture.NewOptions();
-            await using var seedCtx = new ApplicationDbContext(opts);
-            var (_, v) = await SeedVariantAsync(seedCtx, stock: 5, skuSuffix: "ROUNDTRIP");
-            variantId = v.Id;
-        }
+        var variantId = await SeedVariantIdAsync(stock: 5, skuSuffix: "ROUNDTRIP");
 
+        var dbOptions = _fixture.NewOptions();
+        await using (var ctx = new ApplicationDbContext(dbOptions))
         {
-            var opts = _fixture.NewOptions();
-            await using var ctx = new ApplicationDbContext(opts);
             var sut = new VariantStockWriter(ctx);
             (await sut.TryDeductAsync(variantId, 3)).Should().BeTrue();
         }
 
+        await using (var ctx = new ApplicationDbContext(dbOptions))
         {
-            var opts = _fixture.NewOptions();
-            await using var ctx = new ApplicationDbContext(opts);
             var sut = new VariantStockWriter(ctx);
             await sut.RestockAsync(variantId, 3);
         }
 
-        {
-            var opts = _fixture.NewOptions();
-            await using var verifyCtx = new ApplicationDbContext(opts);
-            var variant = await verifyCtx.ProductVariants.FindAsync(variantId);
-            variant!.Stock.Should().Be(5);
-        }
+        (await ReadStockAsync(variantId)).Should().Be(5);
     }
 }

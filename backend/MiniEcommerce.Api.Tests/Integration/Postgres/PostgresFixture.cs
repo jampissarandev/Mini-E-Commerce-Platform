@@ -9,7 +9,11 @@ namespace MiniEcommerce.Api.Tests.Integration.Postgres;
 /// Shared Postgres container for the <c>Postgres</c> xUnit collection.
 /// One container per test run (≈ 5 s startup) — all tests in the collection
 /// share the same DB and run sequentially (xUnit collection semantics).
+/// Tagged <c>Integration-DB</c> per <c>tasks/test-spec.md §6</c>: opt-in
+/// via <c>dotnet test --filter "Category=Integration-DB"</c> so CI can run
+/// the fast InMemory suite by default and only pull the container on demand.
 /// </summary>
+[Trait("Category", "Integration-DB")]
 public sealed class PostgresFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
@@ -30,8 +34,8 @@ public sealed class PostgresFixture : IAsyncLifetime
     {
         await _container.StartAsync();
 
-        var options = NewOptions();
-        await using var ctx = new ApplicationDbContext(options);
+        var dbOptions = NewOptions();
+        await using var ctx = new ApplicationDbContext(dbOptions);
         await ctx.Database.MigrateAsync();
 
         if (!await ctx.Categories.AnyAsync())
@@ -47,6 +51,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     }
 }
 
+[Trait("Category", "Integration-DB")]
 [CollectionDefinition(Name)]
 public sealed class PostgresCollection : ICollectionFixture<PostgresFixture>
 {

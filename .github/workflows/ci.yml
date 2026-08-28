@@ -29,8 +29,34 @@ jobs:
       - name: Build
         run: dotnet build backend/MiniEcommerce.slnx --no-restore --configuration Release
 
-      - name: Test
-        run: dotnet test backend/MiniEcommerce.slnx --no-build --no-restore --configuration Release --logger "console;verbosity=normal"
+      - name: Test (fast suite — skips Integration-DB per tasks/test-spec.md §6)
+        run: dotnet test backend/MiniEcommerce.slnx --no-build --no-restore --configuration Release --logger "console;verbosity=normal" --filter "Category!=Integration-DB"
+
+  backend-integration-db:
+    name: Backend (Integration-DB — Postgres via Testcontainers)
+    runs-on: ubuntu-latest
+    # Opt-in only — schedule + manual dispatch. Pulls postgres:16-alpine
+    # (~5 s startup) and runs the Trait("Category", "Integration-DB") tests
+    # in backend/MiniEcommerce.Api.Tests/Integration/Postgres/*. Per
+    # tasks/test-spec.md §6 the fast suite is the default; this job exists
+    # to validate the Testcontainers harness without slowing every push.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore backend/MiniEcommerce.slnx
+
+      - name: Build
+        run: dotnet build backend/MiniEcommerce.slnx --no-restore --configuration Release
+
+      - name: Test (Integration-DB only)
+        run: dotnet test backend/MiniEcommerce.Api.Tests/MiniEcommerce.Api.Tests.csproj --no-build --no-restore --configuration Release --logger "console;verbosity=normal" --filter "Category=Integration-DB"
 
   frontend:
     name: Frontend (Node)
