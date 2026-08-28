@@ -41,10 +41,18 @@ public class ProductsController : ControllerBase
         if (pageSize < 1) pageSize = 20;
         if (pageSize > 100) pageSize = 100;
 
+        // NOTE: AsSplitQuery is intentionally NOT used here. The query
+        // projects a single collection (Variants) via Select, not via
+        // Include, so EF Core translates it to a correlated subquery
+        // (LATERAL JOIN on Npgsql) rather than a JOIN that would cause
+        // cartesian explosion. With pageSize ≤ 100 and few variants per
+        // product, a single round-trip is optimal. If a second collection
+        // is added to the projection, re-evaluate splitting or projecting
+        // separately. The Category Include is omitted — the projection
+        // already joins via p.Category.Name.
         var query = _context.Products
-            .Include(p => p.Category)
             .Where(p => p.IsActive)
-            .AsQueryable();
+            .AsNoTracking();
 
         var totalCount = await query.CountAsync(cancellationToken);
 

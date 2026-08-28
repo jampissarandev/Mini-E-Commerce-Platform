@@ -217,15 +217,15 @@
 >
 > **Status legend:** ✅ Shipped — code lives in `backend/MiniEcommerce.Api/` and/or `frontend/src/`; 🟡 In progress; ⚪ Not started.
 
-- [x] **Task 24: Apply atomic stock deduction (ADR 0002)** ✅ Shipped 2026-08-20 in `8a640dd`
+- [x] **Task 24: Apply atomic stock deduction (ADR 0002)** ✅ Shipped 2026-08-20 in `8a640dd` · **hardened 2026-08-28** (this commit)
   > Replaces the in-memory re-validate-then-deduct loop in 11a with the atomic SQL UPDATE pattern. On payment failure, the restock path returns `400 PAYMENT_FAILED` (NOT `402`; see `CONTEXT.md` → Payment → Payment failure).
   >
-  > **Status:** Shipped `8a640dd` — `OrdersController.Checkout` uses `ExecuteSqlInterpolatedAsync` per cart item (`UPDATE "Products" SET "Stock" = "Stock" - @qty WHERE "Id" = @id AND "Stock" >= @qty`, `rowsAffected == 0` → `400 INSUFFICIENT_STOCK`) with explicit restock loops for partial checkout and `PAYMENT_FAILED`. InMemory fallback preserves test correctness. `ShippingOptions` (`Shipping:Fee`) also shipped. Remaining hardening: true concurrent integration test against Postgres/Testcontainers.
+  > **Status:** Shipped `8a640dd` — `OrdersController.Checkout` uses `ExecuteSqlInterpolatedAsync` per cart item (`UPDATE "ProductVariants" SET "Stock" = "Stock" - @qty WHERE "Id" = @id AND "Stock" >= @qty`, `rowsAffected == 0` → `400 INSUFFICIENT_STOCK`) with explicit restock loops for partial checkout and `PAYMENT_FAILED`. InMemory fallback preserves test correctness. `ShippingOptions` (`Shipping:Fee`) also shipped. **Hardened 2026-08-28:** `VariantStockWriter` Postgres path now covered by `VariantStockWriterPostgresTests` (5 Testcontainers tests via shared `PostgresFixture`); `ProductsController.GetProducts` `AsSplitQuery` decision documented inline + `AsNoTracking` + redundant `Include` removed.
   - [x] 24a: Add `ExecuteSqlInterpolatedAsync` per cart item; check `rowsAffected`; return 400 `INSUFFICIENT_STOCK` on 0.
   - [x] 24b: Add the restock loop: if `IPaymentService.ChargeAsync` returns `Success = false`, atomic-UPDATE each cart item back to the original quantity before returning `400 PAYMENT_FAILED`.
   - [x] 24c: Remove the now-redundant in-memory re-validate-then-deduct (replaced by atomic UPDATE + InMemory guard).
-  - [x] 24d: Tests — happy path and payment fail mid-checkout (stock restored) covered; concurrent case still needs Postgres harness (hardening).
-  **Files:** `Controllers/OrdersController.cs`, `Services/ShippingOptions.cs`, `Extensions/ServiceCollectionExtensions.cs`, `appsettings.json`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
+  - [x] 24d: Tests — happy path and payment fail mid-checkout (stock restored) covered; concurrent Postgres case now covered by `VariantStockWriterPostgresTests` (5 tests: last-unit race, two-units-both-win, two-units-three-racers, insufficient-stock-both-fail, deduct-then-restock round-trip).
+  **Files:** `Controllers/OrdersController.cs`, `Controllers/ProductsController.cs`, `Services/VariantStockWriter.cs`, `Services/ShippingOptions.cs`, `Extensions/ServiceCollectionExtensions.cs`, `appsettings.json`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`, `backend/MiniEcommerce.Api.Tests/Integration/Postgres/PostgresFixture.cs`, `backend/MiniEcommerce.Api.Tests/Integration/Postgres/VariantStockWriterPostgresTests.cs`
 
 - [x] **Task 25: Add silent token refresh (ADR 0005)** ✅ Shipped 2026-08-20
 
@@ -263,7 +263,7 @@
   **Files:** `Services/MockPaymentService.cs`, `Services/MockPaymentOptions.cs`, `Controllers/PaymentsController.cs`, `frontend/src/lib/usePaymentMode.ts`, `frontend/src/pages/Checkout.tsx`, `backend/MiniEcommerce.Api.Tests/Unit/Services/MockPaymentServiceTests.cs`, `backend/MiniEcommerce.Api.Tests/Integration/Controllers/OrdersControllerTests.cs`
 
 ## Checkpoint: Phase 7 (Deferred ADRs)
-- [ ] ~~Concurrent checkouts for the last unit — exactly one succeeds (Task 24)~~ ⚪ Not started (rolled back 2026-07-13; see ADR 0002 Status)
+- [x] Concurrent checkouts for the last unit — exactly one succeeds (Task 24) ✅ Hardened 2026-08-28 — `VariantStockWriterPostgresTests` (5 Testcontainers tests) proves the atomic `UPDATE ... WHERE Stock >= @qty` guard
 - [x] Refresh rotation works; concurrent refresh limited to one active token per customer (Task 25) ✅ 2026-08-20
 - [x] Customer can save, edit, delete addresses; checkout uses the address book (Task 26) ✅ Shipped 2026-08-20
 - [x] Product variants render in catalog; cart + checkout reference variants; stock is per-variant (Task 27) ✅ 2026-08-21
